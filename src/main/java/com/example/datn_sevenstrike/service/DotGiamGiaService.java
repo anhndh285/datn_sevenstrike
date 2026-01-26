@@ -58,7 +58,6 @@ public class DotGiamGiaService {
         if (req.getTenDotGiamGia() != null) db.setTenDotGiamGia(req.getTenDotGiamGia());
         if (req.getLoaiGiamGia() != null) db.setLoaiGiamGia(req.getLoaiGiamGia());
         if (req.getGiaTriGiamGia() != null) db.setGiaTriGiamGia(req.getGiaTriGiamGia());
-        if (req.getSoTienGiamToiDa() != null) db.setSoTienGiamToiDa(req.getSoTienGiamToiDa());
         if (req.getNgayBatDau() != null) db.setNgayBatDau(req.getNgayBatDau());
         if (req.getNgayKetThuc() != null) db.setNgayKetThuc(req.getNgayKetThuc());
         if (req.getMucUuTien() != null) db.setMucUuTien(req.getMucUuTien());

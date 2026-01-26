@@ -3,14 +3,16 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.DiaChiKhachHangRequest;
 import com.example.datn_sevenstrike.dto.response.DiaChiKhachHangResponse;
 import com.example.datn_sevenstrike.service.DiaChiKhachHangService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
-
+import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/dia-chi-khach-hang")
 @RequiredArgsConstructor
+@Validated
 public class DiaChiKhachHangController {
 
     private final DiaChiKhachHangService service;
@@ -20,23 +22,23 @@ public class DiaChiKhachHangController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
-    public DiaChiKhachHangResponse one(@PathVariable Integer id) {
+    @GetMapping("/{id}")
+    public DiaChiKhachHangResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
     }
 
     @PostMapping
-    public DiaChiKhachHangResponse create(@RequestBody DiaChiKhachHangRequest req) {
+    public DiaChiKhachHangResponse create(@Valid @RequestBody DiaChiKhachHangRequest req) {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
-    public DiaChiKhachHangResponse update(@PathVariable Integer id, @RequestBody DiaChiKhachHangRequest req) {
+    @PutMapping("/{id}")
+    public DiaChiKhachHangResponse update(@PathVariable("id") Integer id, @Valid @RequestBody DiaChiKhachHangRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
-    public void delete(@PathVariable Integer id) {
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
 }

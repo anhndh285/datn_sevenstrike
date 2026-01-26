@@ -3,10 +3,9 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.ChatLieuRequest;
 import com.example.datn_sevenstrike.dto.response.ChatLieuResponse;
 import com.example.datn_sevenstrike.service.ChatLieuService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/chat-lieu")
@@ -20,7 +19,7 @@ public class ChatLieuController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
+    @GetMapping("/{id}")
     public ChatLieuResponse one(@PathVariable Integer id) {
         return service.one(id);
     }
@@ -30,14 +29,13 @@ public class ChatLieuController {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
+    @PutMapping("/{id}")
     public ChatLieuResponse update(@PathVariable Integer id, @RequestBody ChatLieuRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
+    @DeleteMapping("/{id}")
     public void delete(@PathVariable Integer id) {
         service.delete(id);
     }
 }
-

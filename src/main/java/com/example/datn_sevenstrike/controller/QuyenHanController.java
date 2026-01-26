@@ -3,14 +3,16 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.QuyenHanRequest;
 import com.example.datn_sevenstrike.dto.response.QuyenHanResponse;
 import com.example.datn_sevenstrike.service.QuyenHanService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
-
+import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/quyen-han")
 @RequiredArgsConstructor
+@Validated
 public class QuyenHanController {
 
     private final QuyenHanService service;
@@ -20,23 +22,23 @@ public class QuyenHanController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
-    public QuyenHanResponse one(@PathVariable Integer id) {
+    @GetMapping("/{id}")
+    public QuyenHanResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
     }
 
     @PostMapping
-    public QuyenHanResponse create(@RequestBody QuyenHanRequest req) {
+    public QuyenHanResponse create(@Valid @RequestBody QuyenHanRequest req) {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
-    public QuyenHanResponse update(@PathVariable Integer id, @RequestBody QuyenHanRequest req) {
+    @PutMapping("/{id}")
+    public QuyenHanResponse update(@PathVariable("id") Integer id, @Valid @RequestBody QuyenHanRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
-    public void delete(@PathVariable Integer id) {
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
 }

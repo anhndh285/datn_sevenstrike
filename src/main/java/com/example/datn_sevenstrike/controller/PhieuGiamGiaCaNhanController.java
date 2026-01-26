@@ -3,14 +3,16 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.PhieuGiamGiaCaNhanRequest;
 import com.example.datn_sevenstrike.dto.response.PhieuGiamGiaCaNhanResponse;
 import com.example.datn_sevenstrike.service.PhieuGiamGiaCaNhanService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
-
+import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/phieu-giam-gia-ca-nhan")
 @RequiredArgsConstructor
+@Validated
 public class PhieuGiamGiaCaNhanController {
 
     private final PhieuGiamGiaCaNhanService service;
@@ -20,23 +22,23 @@ public class PhieuGiamGiaCaNhanController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
-    public PhieuGiamGiaCaNhanResponse one(@PathVariable Integer id) {
+    @GetMapping("/{id}")
+    public PhieuGiamGiaCaNhanResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
     }
 
     @PostMapping
-    public PhieuGiamGiaCaNhanResponse create(@RequestBody PhieuGiamGiaCaNhanRequest req) {
+    public PhieuGiamGiaCaNhanResponse create(@Valid @RequestBody PhieuGiamGiaCaNhanRequest req) {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
-    public PhieuGiamGiaCaNhanResponse update(@PathVariable Integer id, @RequestBody PhieuGiamGiaCaNhanRequest req) {
+    @PutMapping("/{id}")
+    public PhieuGiamGiaCaNhanResponse update(@PathVariable("id") Integer id, @Valid @RequestBody PhieuGiamGiaCaNhanRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
-    public void delete(@PathVariable Integer id) {
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
 }

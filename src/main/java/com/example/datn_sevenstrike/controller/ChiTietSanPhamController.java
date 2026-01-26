@@ -20,7 +20,7 @@ public class ChiTietSanPhamController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
+    @GetMapping("/{id}")
     public ChiTietSanPhamResponse one(@PathVariable Integer id) {
         return service.one(id);
     }
@@ -30,13 +30,20 @@ public class ChiTietSanPhamController {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
+    @PutMapping("/{id}")
     public ChiTietSanPhamResponse update(@PathVariable Integer id, @RequestBody ChiTietSanPhamRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
+    @DeleteMapping("/{id}")
     public void delete(@PathVariable Integer id) {
         service.delete(id);
     }
+
+    @GetMapping("/by-san-pham/{idSanPham}")
+    public List<ChiTietSanPhamResponse> bySanPham(@PathVariable Integer idSanPham) {
+        return service.bySanPham(idSanPham);
+    }
+
 }
+

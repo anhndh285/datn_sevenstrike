@@ -3,14 +3,17 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.KhachHangRequest;
 import com.example.datn_sevenstrike.dto.response.KhachHangResponse;
 import com.example.datn_sevenstrike.service.KhachHangService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
-
+import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/admin/khach-hang")
 @RequiredArgsConstructor
+@Validated
 public class KhachHangController {
 
     private final KhachHangService service;
@@ -20,23 +23,33 @@ public class KhachHangController {
         return service.all();
     }
 
-    @GetMapping("/<built-in function id>")
-    public KhachHangResponse one(@PathVariable Integer id) {
+    // ✅ NEW: phân trang (FE đang dùng pageNo/pageSize)
+    @GetMapping("/page")
+    public Page<KhachHangResponse> page(
+            @RequestParam(defaultValue = "0") int pageNo,
+            @RequestParam(defaultValue = "5") int pageSize
+    ) {
+        return service.page(pageNo, pageSize);
+    }
+
+    // ✅ FIX: chỉ match id là số để tránh /page bị hiểu là id
+    @GetMapping("/{id:\\d+}")
+    public KhachHangResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
     }
 
     @PostMapping
-    public KhachHangResponse create(@RequestBody KhachHangRequest req) {
+    public KhachHangResponse create(@Valid @RequestBody KhachHangRequest req) {
         return service.create(req);
     }
 
-    @PutMapping("/<built-in function id>")
-    public KhachHangResponse update(@PathVariable Integer id, @RequestBody KhachHangRequest req) {
+    @PutMapping("/{id:\\d+}")
+    public KhachHangResponse update(@PathVariable("id") Integer id, @Valid @RequestBody KhachHangRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/<built-in function id>")
-    public void delete(@PathVariable Integer id) {
+    @DeleteMapping("/{id:\\d+}")
+    public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
 }

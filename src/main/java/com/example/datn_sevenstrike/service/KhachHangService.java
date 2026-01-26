@@ -6,11 +6,13 @@ import com.example.datn_sevenstrike.entity.KhachHang;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.KhachHangRepository;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,15 @@ public class KhachHangService {
                 .stream().map(this::toResponse).toList();
     }
 
+    // ✅ NEW: Paging
+    public Page<KhachHangResponse> page(int pageNo, int pageSize) {
+        int p = Math.max(pageNo, 0);
+        int s = Math.max(pageSize, 1);
+
+        var pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "id"));
+        return repo.findAllByXoaMemFalse(pageable).map(this::toResponse);
+    }
+
     public KhachHangResponse one(Integer id) {
         KhachHang e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
@@ -35,12 +46,13 @@ public class KhachHangService {
     @Transactional
     public KhachHangResponse create(KhachHangRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         KhachHang e = mapper.map(req, KhachHang.class);
         e.setId(null);
 
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getNgayTao() == null) e.setNgayTao(LocalDateTime.now());
-
+        e.setNgayCapNhat(null);
 
         validate(e);
         return toResponse(repo.save(e));
@@ -49,9 +61,9 @@ public class KhachHangService {
     @Transactional
     public KhachHangResponse update(Integer id, KhachHangRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         KhachHang db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
-
 
         if (req.getTenKhachHang() != null) db.setTenKhachHang(req.getTenKhachHang());
         if (req.getTenTaiKhoan() != null) db.setTenTaiKhoan(req.getTenTaiKhoan());
@@ -60,9 +72,10 @@ public class KhachHangService {
         if (req.getSoDienThoai() != null) db.setSoDienThoai(req.getSoDienThoai());
         if (req.getGioiTinh() != null) db.setGioiTinh(req.getGioiTinh());
         if (req.getNgaySinh() != null) db.setNgaySinh(req.getNgaySinh());
-        if (req.getNguoiTao() != null) db.setNguoiTao(req.getNguoiTao());
-        if (req.getNgayCapNhat() != null) db.setNgayCapNhat(req.getNgayCapNhat());
+
+        // khuyến nghị: không update nguoiTao/ngayTao
         if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
+
         db.setNgayCapNhat(LocalDateTime.now());
 
         validate(db);
@@ -79,7 +92,9 @@ public class KhachHangService {
     }
 
     private void validate(KhachHang e) {
-        if (e.getTenKhachHang() == null || e.getTenKhachHang().isBlank()) throw new BadRequestEx("Thiếu ten_khach_hang");
+        if (e.getTenKhachHang() == null || e.getTenKhachHang().isBlank()) {
+            throw new BadRequestEx("Thiếu ten_khach_hang");
+        }
     }
 
     private KhachHangResponse toResponse(KhachHang e) {

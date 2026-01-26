@@ -88,4 +88,6 @@ public class SanPham {
     @JoinColumn(name = "id_chat_lieu", insertable = false, updatable = false)
     private ChatLieu chatLieu;
 
+    @Column(name = "trang_thai_kinh_doanh", nullable = false)
+    private Boolean trangThaiKinhDoanh;
 }

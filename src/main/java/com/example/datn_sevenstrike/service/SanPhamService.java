@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,30 @@ public class SanPhamService {
                 .stream().map(this::toResponse).toList();
     }
 
+    // ✅ Phân trang chuẩn (server-side)
+    public Page<SanPhamResponse> page(int pageNo, int pageSize) {
+        int p = Math.max(pageNo, 0);
+        int s = Math.max(pageSize, 1);
+
+        var pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "id"));
+        return repo.findAllByXoaMemFalse(pageable).map(this::toResponse);
+    }
+
+    // ✅ POS/Online: chỉ lấy SP đang kinh doanh
+    public List<SanPhamResponse> allKinhDoanh() {
+        return repo.findAllByXoaMemFalseAndTrangThaiKinhDoanhTrueOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
+    // ✅ phân trang SP kinh doanh
+    public Page<SanPhamResponse> pageKinhDoanh(int pageNo, int pageSize) {
+        int p = Math.max(pageNo, 0);
+        int s = Math.max(pageSize, 1);
+
+        var pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "id"));
+        return repo.findAllByXoaMemFalseAndTrangThaiKinhDoanhTrue(pageable).map(this::toResponse);
+    }
+
     public SanPhamResponse one(Integer id) {
         SanPham e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy SanPham id=" + id));
@@ -34,12 +61,15 @@ public class SanPhamService {
     @Transactional
     public SanPhamResponse create(SanPhamRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         SanPham e = mapper.map(req, SanPham.class);
         e.setId(null);
 
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getNgayTao() == null) e.setNgayTao(LocalDateTime.now());
 
+        // default trạng thái kinh doanh
+        if (e.getTrangThaiKinhDoanh() == null) e.setTrangThaiKinhDoanh(true);
 
         validate(e);
         return toResponse(repo.save(e));
@@ -48,9 +78,9 @@ public class SanPhamService {
     @Transactional
     public SanPhamResponse update(Integer id, SanPhamRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         SanPham db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy SanPham id=" + id));
-
 
         if (req.getIdThuongHieu() != null) db.setIdThuongHieu(req.getIdThuongHieu());
         if (req.getIdXuatXu() != null) db.setIdXuatXu(req.getIdXuatXu());
@@ -61,9 +91,12 @@ public class SanPhamService {
         if (req.getTenSanPham() != null) db.setTenSanPham(req.getTenSanPham());
         if (req.getMoTaNgan() != null) db.setMoTaNgan(req.getMoTaNgan());
         if (req.getMoTaChiTiet() != null) db.setMoTaChiTiet(req.getMoTaChiTiet());
-        if (req.getNguoiTao() != null) db.setNguoiTao(req.getNguoiTao());
-        if (req.getNgayCapNhat() != null) db.setNgayCapNhat(req.getNgayCapNhat());
+
+        if (req.getTrangThaiKinhDoanh() != null) db.setTrangThaiKinhDoanh(req.getTrangThaiKinhDoanh());
+
+        // khuyến nghị: không update nguoiTao/ngayTao
         if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
+
         db.setNgayCapNhat(LocalDateTime.now());
 
         validate(db);
@@ -82,6 +115,7 @@ public class SanPhamService {
     private void validate(SanPham e) {
         if (e.getIdThuongHieu() == null) throw new BadRequestEx("Thiếu id_thuong_hieu");
         if (e.getTenSanPham() == null || e.getTenSanPham().isBlank()) throw new BadRequestEx("Thiếu ten_san_pham");
+        if (e.getTrangThaiKinhDoanh() == null) e.setTrangThaiKinhDoanh(true);
     }
 
     private SanPhamResponse toResponse(SanPham e) {

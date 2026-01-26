@@ -9,14 +9,14 @@ public class PhieuGiamGiaResponse {
     private Integer id;
     private String maPhieuGiamGia;
     private String tenPhieuGiamGia;
-    private Boolean loaiPhieuGiamGia;
+    private Integer loaiPhieuGiamGia;
     private BigDecimal giaTriGiamGia;
     private BigDecimal soTienGiamToiDa;
     private BigDecimal hoaDonToiThieu;
     private Integer soLuongSuDung;
     private LocalDate ngayBatDau;
     private LocalDate ngayKetThuc;
-    private Boolean trangThai;
+    private Integer trangThai;
     private String moTa;
     private Boolean xoaMem;
 }

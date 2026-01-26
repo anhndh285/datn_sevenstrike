@@ -21,4 +21,5 @@ public class SanPhamResponse {
     private Integer nguoiTao;
     private LocalDateTime ngayCapNhat;
     private Integer nguoiCapNhat;
+    private Boolean trangThaiKinhDoanh;
 }
