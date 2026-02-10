@@ -8,54 +8,53 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "khach_hang")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class KhachHang {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "ma_khach_hang", nullable = false, insertable = false, updatable = false)
+    @Column(name = "ma_khach_hang", insertable = false, updatable = false, length = 7)
     private String maKhachHang;
 
-    @Column(name = "ten_khach_hang", nullable = true)
+    @Column(name = "ten_khach_hang", nullable = false, length = 255)
     private String tenKhachHang;
 
-    @Column(name = "ten_tai_khoan", nullable = true)
+    @Column(name = "ten_tai_khoan", nullable = false, length = 255)
     private String tenTaiKhoan;
 
-    @Column(name = "mat_khau", nullable = true)
+    @Column(name = "mat_khau", nullable = false, length = 255)
     private String matKhau;
 
-    @Column(name = "email", nullable = false)
+    @Column(name = "email", length = 255)
     private String email;
 
-    @Column(name = "so_dien_thoai", nullable = false)
+    @Column(name = "so_dien_thoai", length = 12)
     private String soDienThoai;
 
-    @Column(name = "gioi_tinh", nullable = false)
+    @Column(name = "gioi_tinh")
     private Boolean gioiTinh;
 
-    @Column(name = "ngay_sinh", nullable = false)
+    @Column(name = "ngay_sinh")
     private LocalDate ngaySinh;
 
-    @Column(name = "xoa_mem", nullable = true)
+    @Column(name = "trang_thai", nullable = false)
+    private Boolean trangThai;
+
+    @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
 
-    @Column(name = "ngay_tao", nullable = true)
+    @Column(name = "ngay_tao", nullable = false)
     private LocalDateTime ngayTao;
 
-    @Column(name = "nguoi_tao", nullable = false)
+    @Column(name = "nguoi_tao")
     private Integer nguoiTao;
 
-    @Column(name = "ngay_cap_nhat", nullable = false)
+    @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;
 
-    @Column(name = "nguoi_cap_nhat", nullable = false)
+    @Column(name = "nguoi_cap_nhat")
     private Integer nguoiCapNhat;
-
 }

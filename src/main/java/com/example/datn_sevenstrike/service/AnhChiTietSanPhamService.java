@@ -24,7 +24,6 @@ public class AnhChiTietSanPhamService {
     private final AnhChiTietSanPhamRepository repo;
     private final ModelMapper mapper;
 
-    // ✅ thư mục upload (mặc định "uploads" nếu chưa set property)
     @Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
@@ -35,8 +34,14 @@ public class AnhChiTietSanPhamService {
 
     public AnhChiTietSanPhamResponse one(Integer id) {
         AnhChiTietSanPham e = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy AnhChiTietSanPham id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ảnh CTSP id=" + id));
         return toResponse(e);
+    }
+
+    public List<AnhChiTietSanPhamResponse> byChiTietSanPham(Integer idChiTietSanPham) {
+        if (idChiTietSanPham == null) throw new BadRequestEx("Thiếu id_chi_tiet_san_pham");
+        return repo.findAllByIdChiTietSanPhamAndXoaMemFalseOrderByIdDesc(idChiTietSanPham)
+                .stream().map(this::toResponse).toList();
     }
 
     @Transactional
@@ -46,11 +51,9 @@ public class AnhChiTietSanPhamService {
         AnhChiTietSanPham e = mapper.map(req, AnhChiTietSanPham.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getLaAnhDaiDien() == null) e.setLaAnhDaiDien(false);
-        if (e.getMoTa() == null) e.setMoTa("");
+        applyDefaults(e);
 
-        // ✅ Nếu tạo mới ảnh đại diện -> unset ảnh đại diện cũ trước (tránh unique index)
+        // nếu tạo mới ảnh đại diện -> unset ảnh đại diện cũ trước (tránh unique index)
         if (Boolean.TRUE.equals(e.getLaAnhDaiDien())) {
             repo.unsetDaiDien(e.getIdChiTietSanPham());
         }
@@ -64,14 +67,15 @@ public class AnhChiTietSanPhamService {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
 
         AnhChiTietSanPham db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy AnhChiTietSanPham id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ảnh CTSP id=" + id));
+
+        Integer oldCtsp = db.getIdChiTietSanPham();
 
         if (req.getIdChiTietSanPham() != null) db.setIdChiTietSanPham(req.getIdChiTietSanPham());
         if (req.getDuongDanAnh() != null) db.setDuongDanAnh(req.getDuongDanAnh());
         if (req.getMoTa() != null) db.setMoTa(req.getMoTa());
-        if (db.getMoTa() == null) db.setMoTa("");
 
-        // ✅ set ảnh đại diện đúng cách (unset trước)
+        // xử lý set đại diện
         if (req.getLaAnhDaiDien() != null) {
             if (Boolean.TRUE.equals(req.getLaAnhDaiDien())) {
                 if (db.getIdChiTietSanPham() == null) throw new BadRequestEx("Ảnh chưa có id_chi_tiet_san_pham");
@@ -82,6 +86,14 @@ public class AnhChiTietSanPhamService {
             }
         }
 
+        // Nếu đổi CTSP mà ảnh đang là đại diện -> phải unset đại diện ở CTSP mới trước (an toàn)
+        if (oldCtsp != null && db.getIdChiTietSanPham() != null
+                && !oldCtsp.equals(db.getIdChiTietSanPham())
+                && Boolean.TRUE.equals(db.getLaAnhDaiDien())) {
+            repo.unsetDaiDienExcept(db.getIdChiTietSanPham(), db.getId());
+        }
+
+        applyDefaults(db);
         validate(db);
         return toResponse(repo.save(db));
     }
@@ -89,35 +101,28 @@ public class AnhChiTietSanPhamService {
     @Transactional
     public void delete(Integer id) {
         AnhChiTietSanPham db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy AnhChiTietSanPham id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ảnh CTSP id=" + id));
         db.setXoaMem(true);
         repo.save(db);
-    }
-
-    public List<AnhChiTietSanPhamResponse> byChiTietSanPham(Integer idChiTietSanPham) {
-        if (idChiTietSanPham == null) throw new BadRequestEx("Thiếu id_chi_tiet_san_pham");
-        return repo.findAllByIdChiTietSanPhamAndXoaMemFalseOrderByIdDesc(idChiTietSanPham)
-                .stream().map(this::toResponse).toList();
     }
 
     @Transactional
     public AnhChiTietSanPhamResponse setDaiDien(Integer id) {
         AnhChiTietSanPham db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy AnhChiTietSanPham id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ảnh CTSP id=" + id));
 
         Integer idCtsp = db.getIdChiTietSanPham();
         if (idCtsp == null) throw new BadRequestEx("Ảnh chưa có id_chi_tiet_san_pham");
 
-        // ✅ unset đại diện cũ (chừa lại chính nó)
         repo.unsetDaiDienExcept(idCtsp, db.getId());
-
         db.setLaAnhDaiDien(true);
-        if (db.getMoTa() == null) db.setMoTa("");
 
+        applyDefaults(db);
+        validate(db);
         return toResponse(repo.save(db));
     }
 
-    // ✅ Upload ảnh mới + tạo record
+    // Upload ảnh mới + tạo record
     @Transactional
     public AnhChiTietSanPhamResponse upload(Integer idChiTietSanPham, MultipartFile file, boolean laAnhDaiDien, String moTa) {
         if (idChiTietSanPham == null) throw new BadRequestEx("Thiếu id_chi_tiet_san_pham");
@@ -127,7 +132,6 @@ public class AnhChiTietSanPhamService {
 
         String publicPath = saveFileToUploads(idChiTietSanPham, file);
 
-        // ✅ Nếu là đại diện -> unset đại diện cũ trước (tránh unique index)
         if (laAnhDaiDien) {
             repo.unsetDaiDien(idChiTietSanPham);
         }
@@ -140,32 +144,29 @@ public class AnhChiTietSanPhamService {
         e.setMoTa(moTa == null ? "" : moTa);
         e.setXoaMem(false);
 
+        applyDefaults(e);
         validate(e);
         return toResponse(repo.save(e));
     }
 
-    // ✅ Replace file ảnh theo id ảnh (FIX lỗi “update ảnh”)
+    // Replace file ảnh theo id ảnh
     @Transactional
     public AnhChiTietSanPhamResponse uploadUpdate(Integer id, MultipartFile file, Boolean laAnhDaiDien, String moTa) {
         if (file == null || file.isEmpty()) throw new BadRequestEx("File rỗng");
 
         AnhChiTietSanPham db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy AnhChiTietSanPham id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ảnh CTSP id=" + id));
 
         Integer idCtsp = db.getIdChiTietSanPham();
         if (idCtsp == null) throw new BadRequestEx("Ảnh chưa có id_chi_tiet_san_pham");
 
         ensureImage(file);
 
-        // lưu file mới -> set lại đường dẫn
         String publicPath = saveFileToUploads(idCtsp, file);
         db.setDuongDanAnh(publicPath);
 
-        // cập nhật mô tả (không để null)
         if (moTa != null) db.setMoTa(moTa);
-        if (db.getMoTa() == null) db.setMoTa("");
 
-        // nếu user muốn set ảnh đại diện khi update
         if (laAnhDaiDien != null) {
             if (Boolean.TRUE.equals(laAnhDaiDien)) {
                 repo.unsetDaiDienExcept(idCtsp, db.getId());
@@ -175,6 +176,7 @@ public class AnhChiTietSanPhamService {
             }
         }
 
+        applyDefaults(db);
         validate(db);
         return toResponse(repo.save(db));
     }
@@ -187,7 +189,6 @@ public class AnhChiTietSanPhamService {
     }
 
     private String saveFileToUploads(Integer idChiTietSanPham, MultipartFile file) {
-        // folder: uploads/ctsp/{idCtsp}/
         Path dir = Paths.get(uploadDir, "ctsp", String.valueOf(idChiTietSanPham))
                 .toAbsolutePath().normalize();
 
@@ -211,18 +212,20 @@ public class AnhChiTietSanPhamService {
             throw new BadRequestEx("Lưu file thất bại: " + e.getMessage());
         }
 
-        // đường dẫn public để FE render (nhớ cấu hình serve /uploads/**)
         return "/uploads/ctsp/" + idChiTietSanPham + "/" + filename;
+    }
+
+    private void applyDefaults(AnhChiTietSanPham e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getLaAnhDaiDien() == null) e.setLaAnhDaiDien(false);
+        if (e.getMoTa() == null) e.setMoTa("");
     }
 
     private void validate(AnhChiTietSanPham e) {
         if (e.getIdChiTietSanPham() == null) throw new BadRequestEx("Thiếu id_chi_tiet_san_pham");
         if (e.getDuongDanAnh() == null || e.getDuongDanAnh().isBlank())
             throw new BadRequestEx("Thiếu duong_dan_anh");
-
-        if (e.getMoTa() == null) e.setMoTa("");
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getLaAnhDaiDien() == null) e.setLaAnhDaiDien(false);
+        applyDefaults(e);
     }
 
     private AnhChiTietSanPhamResponse toResponse(AnhChiTietSanPham e) {

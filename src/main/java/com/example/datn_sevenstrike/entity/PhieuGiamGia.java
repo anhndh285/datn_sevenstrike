@@ -2,12 +2,9 @@ package com.example.datn_sevenstrike.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
-// SỬA IMPORT TẠI ĐÂY: Sử dụng đúng annotation cho Hibernate 6+
-import org.hibernate.annotations.Generated;
-import org.hibernate.generator.EventType;
 
 @Entity
 @Table(name = "phieu_giam_gia")
@@ -22,46 +19,39 @@ public class PhieuGiamGia {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    // SỬA CẤU HÌNH TẠI ĐÂY:
-    // 1. Giữ insertable = false, updatable = false để tránh lỗi chèn vào cột tự toán (Computed Column).
-    // 2. Dùng event = EventType.INSERT để Hibernate đọc lại mã từ DB ngay sau khi lưu.
-    @Column(name = "ma_phieu_giam_gia", nullable = false, insertable = false, updatable = false)
-    @Generated(event = EventType.INSERT)
+    @Column(name = "ma_phieu_giam_gia", insertable = false, updatable = false, length = 8)
     private String maPhieuGiamGia;
 
-    @Column(name = "ten_phieu_giam_gia")
+    @Column(name = "ten_phieu_giam_gia", nullable = false, length = 255)
     private String tenPhieuGiamGia;
 
-    @Column(name = "loai_phieu_giam_gia")
-    private Integer loaiPhieuGiamGia;
+    @Column(name = "loai_phieu_giam_gia", nullable = false)
+    private Boolean loaiPhieuGiamGia;
 
-    @Column(name = "gia_tri_giam_gia")
+    @Column(name = "gia_tri_giam_gia", nullable = false, precision = 18, scale = 2)
     private BigDecimal giaTriGiamGia;
 
-    @Column(name = "so_tien_giam_toi_da", nullable = false)
+    @Column(name = "so_tien_giam_toi_da", precision = 18, scale = 2)
     private BigDecimal soTienGiamToiDa;
 
-    @Column(name = "hoa_don_toi_thieu", nullable = false)
+    @Column(name = "hoa_don_toi_thieu", precision = 18, scale = 2)
     private BigDecimal hoaDonToiThieu;
 
-    @Column(name = "so_luong_su_dung")
+    @Column(name = "so_luong_su_dung", nullable = false)
     private Integer soLuongSuDung;
 
-    @Column(name = "ngay_bat_dau")
+    @Column(name = "ngay_bat_dau", nullable = false)
     private LocalDate ngayBatDau;
 
-    @Column(name = "ngay_ket_thuc")
+    @Column(name = "ngay_ket_thuc", nullable = false)
     private LocalDate ngayKetThuc;
 
-    @Column(name = "trang_thai")
-    private Integer trangThai;
+    @Column(name = "trang_thai", nullable = false)
+    private Boolean trangThai;
 
-    @Column(name = "mo_ta", nullable = false)
+    @Column(name = "mo_ta", length = 255)
     private String moTa;
 
-    @Column(name = "xoa_mem")
+    @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
-
-    @OneToMany(mappedBy = "phieuGiamGia", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<PhieuGiamGiaChiTiet> danhSachKhachHang;
 }

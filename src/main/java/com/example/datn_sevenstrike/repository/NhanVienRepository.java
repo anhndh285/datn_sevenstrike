@@ -11,12 +11,20 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NhanVienRepository extends JpaRepository<NhanVien, Integer> {
 
-    Optional<NhanVien> findByIdAndXoaMemFalse(Integer id);
-
     List<NhanVien> findAllByXoaMemFalseOrderByIdDesc();
 
+    Optional<NhanVien> findByIdAndXoaMemFalse(Integer id);
+
+    Page<NhanVien> findAllByXoaMemFalse(Pageable pageable);
+
+    // ✅ AuthService dùng
     Optional<NhanVien> findByTenTaiKhoanAndXoaMemFalse(String tenTaiKhoan);
 
-    // ✅ NEW: paging server-side
-    Page<NhanVien> findAllByXoaMemFalse(Pageable pageable);
+    boolean existsByTenTaiKhoanAndXoaMemFalse(String tenTaiKhoan);
+
+    boolean existsByEmailAndXoaMemFalse(String email);
+
+    boolean existsByTenTaiKhoanAndXoaMemFalseAndIdNot(String tenTaiKhoan, Integer id);
+
+    boolean existsByEmailAndXoaMemFalseAndIdNot(String email, Integer id);
 }

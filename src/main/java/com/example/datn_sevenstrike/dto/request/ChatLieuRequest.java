@@ -9,5 +9,6 @@ import lombok.*;
 @Builder
 public class ChatLieuRequest {
     private String tenChatLieu;
+    private Boolean trangThai;
     private Boolean xoaMem;
 }

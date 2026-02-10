@@ -6,11 +6,12 @@ import com.example.datn_sevenstrike.entity.LichSuHoaDon;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.LichSuHoaDonRepository;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +31,13 @@ public class LichSuHoaDonService {
         return toResponse(e);
     }
 
+    // Timeline theo hóa đơn (nếu repo có method này thì dùng luôn)
+    public List<LichSuHoaDonResponse> byHoaDon(Integer idHoaDon) {
+        if (idHoaDon == null) throw new BadRequestEx("Thiếu id_hoa_don");
+        return repo.findAllByIdHoaDonAndXoaMemFalseOrderByThoiGianAsc(idHoaDon)
+                .stream().map(this::toResponse).toList();
+    }
+
     @Transactional
     public LichSuHoaDonResponse create(LichSuHoaDonRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
@@ -38,20 +46,14 @@ public class LichSuHoaDonService {
         e.setId(null);
         e.setXoaMem(false);
 
-        // bắt buộc
         e.setIdHoaDon(req.getIdHoaDon());
-        e.setTrangThai(req.getTrangThai() != null ? req.getTrangThai().trim() : null);
-
-        // optional
+        e.setTrangThai(req.getTrangThai());
         e.setGhiChu(req.getGhiChu() != null ? req.getGhiChu().trim() : null);
-
-        // thoiGian: DB tự set (sysdatetime) => không set từ req
 
         validate(e);
 
         LichSuHoaDon saved = repo.save(e);
-
-        // reload để lấy thoiGian default từ DB (tránh response null)
+        // thoiGian lấy từ DB default (insertable=false) -> reload lại để chắc chắn có giá trị
         LichSuHoaDon reloaded = repo.findById(saved.getId()).orElse(saved);
         return toResponse(reloaded);
     }
@@ -63,14 +65,10 @@ public class LichSuHoaDonService {
         LichSuHoaDon db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy Lịch sử hóa đơn id=" + id));
 
-        // Cho phép sửa nội dung cần thiết
+        // Audit: không sửa thoiGian (DB tự set)
         if (req.getIdHoaDon() != null) db.setIdHoaDon(req.getIdHoaDon());
-        if (req.getTrangThai() != null && !req.getTrangThai().isBlank())
-            db.setTrangThai(req.getTrangThai().trim());
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
         if (req.getGhiChu() != null) db.setGhiChu(req.getGhiChu().trim());
-
-        // thoiGian: không update (audit)
-        // db.setThoiGian(...) -> bỏ
 
         validate(db);
 
@@ -89,10 +87,10 @@ public class LichSuHoaDonService {
 
     private void validate(LichSuHoaDon e) {
         if (e.getIdHoaDon() == null) throw new BadRequestEx("Thiếu id_hoa_don");
-        if (e.getTrangThai() == null || e.getTrangThai().isBlank())
-            throw new BadRequestEx("Thiếu trang_thai");
-        if (e.getTrangThai().length() > 50)
-            throw new BadRequestEx("trang_thai tối đa 50 ký tự");
+        if (e.getTrangThai() == null) throw new BadRequestEx("Thiếu trang_thai");
+        if (e.getTrangThai() < 1 || e.getTrangThai() > 7) {
+            throw new BadRequestEx("trang_thai không hợp lệ (1..7)");
+        }
     }
 
     private LichSuHoaDonResponse toResponse(LichSuHoaDon e) {

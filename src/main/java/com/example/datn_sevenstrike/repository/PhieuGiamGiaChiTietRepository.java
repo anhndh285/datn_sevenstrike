@@ -3,12 +3,22 @@ package com.example.datn_sevenstrike.repository;
 import com.example.datn_sevenstrike.entity.PhieuGiamGia;
 import com.example.datn_sevenstrike.entity.PhieuGiamGiaChiTiet;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-@Repository
 public interface PhieuGiamGiaChiTietRepository extends JpaRepository<PhieuGiamGiaChiTiet, Integer> {
-    void deleteByPhieuGiamGia(PhieuGiamGia pgg);
-    List<PhieuGiamGiaChiTiet> findAllByPhieuGiamGia(PhieuGiamGia pgg);
+
+    List<PhieuGiamGiaChiTiet> findAllByPhieuGiamGiaAndXoaMemFalse(PhieuGiamGia phieuGiamGia);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update PhieuGiamGiaChiTiet ct
+           set ct.xoaMem = true
+         where ct.phieuGiamGia = :pgg
+           and ct.xoaMem = false
+    """)
+    int deleteByPhieuGiamGia(@Param("pgg") PhieuGiamGia phieuGiamGia);
 }

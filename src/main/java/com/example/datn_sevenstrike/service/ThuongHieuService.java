@@ -24,6 +24,11 @@ public class ThuongHieuService {
                 .stream().map(this::toResponse).toList();
     }
 
+    public List<ThuongHieuResponse> allActive() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
     public ThuongHieuResponse one(Integer id) {
         ThuongHieu e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
@@ -36,10 +41,9 @@ public class ThuongHieuService {
         ThuongHieu e = mapper.map(req, ThuongHieu.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -49,10 +53,13 @@ public class ThuongHieuService {
         ThuongHieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
 
-
         if (req.getTenThuongHieu() != null) db.setTenThuongHieu(req.getTenThuongHieu());
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
 
+        applyDefaults(db);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -61,12 +68,18 @@ public class ThuongHieuService {
         ThuongHieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
+    private void applyDefaults(ThuongHieu e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+        if (e.getTenThuongHieu() != null) e.setTenThuongHieu(e.getTenThuongHieu().trim());
+    }
+
     private void validate(ThuongHieu e) {
-        if (e.getTenThuongHieu() == null || e.getTenThuongHieu().isBlank()) throw new BadRequestEx("Thiếu ten_thuong_hieu");
+        if (e.getTenThuongHieu() == null || e.getTenThuongHieu().isBlank())
+            throw new BadRequestEx("Thiếu ten_thuong_hieu");
     }
 
     private ThuongHieuResponse toResponse(ThuongHieu e) {

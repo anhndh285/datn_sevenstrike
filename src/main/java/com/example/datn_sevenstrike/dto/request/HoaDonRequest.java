@@ -1,8 +1,9 @@
 package com.example.datn_sevenstrike.dto.request;
 
+import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import lombok.*;
 
 @Getter
 @Setter
@@ -10,24 +11,31 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class HoaDonRequest {
+
     private Integer idKhachHang;
     private Integer idNhanVien;
+
     private Integer idPhieuGiamGia;
     private Integer idPhieuGiamGiaCaNhan;
-    private Boolean loaiDon;
+
+    private Boolean loaiDon; // 0: tại quầy | 1: giao hàng/online
+
     private BigDecimal phiVanChuyen;
     private BigDecimal tongTien;
     private BigDecimal tongTienSauGiam;
+
     private String tenKhachHang;
     private String diaChiKhachHang;
     private String soDienThoaiKhachHang;
     private String emailKhachHang;
-    private String trangThaiHienTai;
-    private LocalDateTime ngayTao;
+
+    private Integer trangThaiHienTai;
+
     private LocalDateTime ngayThanhToan;
     private String ghiChu;
+
     private Boolean xoaMem;
+
     private Integer nguoiTao;
-    private LocalDateTime ngayCapNhat;
     private Integer nguoiCapNhat;
 }

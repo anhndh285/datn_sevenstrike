@@ -24,6 +24,12 @@ public class FormChanService {
                 .stream().map(this::toResponse).toList();
     }
 
+    // ✅ dùng cho combobox: chỉ hiện đang hoạt động
+    public List<FormChanResponse> allActive() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
     public FormChanResponse one(Integer id) {
         FormChan e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
@@ -33,26 +39,30 @@ public class FormChanService {
     @Transactional
     public FormChanResponse create(FormChanRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         FormChan e = mapper.map(req, FormChan.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public FormChanResponse update(Integer id, FormChanRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         FormChan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
 
-
         if (req.getTenFormChan() != null) db.setTenFormChan(req.getTenFormChan());
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
 
+        applyDefaults(db);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -61,12 +71,17 @@ public class FormChanService {
         FormChan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
+    private void applyDefaults(FormChan e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+    }
+
     private void validate(FormChan e) {
-        if (e.getTenFormChan() == null || e.getTenFormChan().isBlank()) throw new BadRequestEx("Thiếu ten_form_chan");
+        if (e.getTenFormChan() == null || e.getTenFormChan().isBlank())
+            throw new BadRequestEx("Thiếu ten_form_chan");
     }
 
     private FormChanResponse toResponse(FormChan e) {

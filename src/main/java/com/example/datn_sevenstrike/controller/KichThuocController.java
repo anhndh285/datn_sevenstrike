@@ -3,9 +3,10 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.KichThuocRequest;
 import com.example.datn_sevenstrike.dto.response.KichThuocResponse;
 import com.example.datn_sevenstrike.service.KichThuocService;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/kich-thuoc")
@@ -17,6 +18,11 @@ public class KichThuocController {
     @GetMapping
     public List<KichThuocResponse> all() {
         return service.all();
+    }
+
+    @GetMapping("/active")
+    public List<KichThuocResponse> allActive() {
+        return service.allActive();
     }
 
     @GetMapping("/{id}")

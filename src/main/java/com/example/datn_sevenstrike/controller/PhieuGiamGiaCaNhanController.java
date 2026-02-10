@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/controller/PhieuGiamGiaCaNhanController.java
 package com.example.datn_sevenstrike.controller;
 
 import com.example.datn_sevenstrike.dto.request.PhieuGiamGiaCaNhanRequest;
@@ -10,7 +11,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/phieu-giam-gia-ca-nhan")
+@RequestMapping({"/api/admin/phieu-giam-gia-ca-nhan", "/api/phieu-giam-gia-ca-nhan"})
 @RequiredArgsConstructor
 @Validated
 public class PhieuGiamGiaCaNhanController {
@@ -20,6 +21,18 @@ public class PhieuGiamGiaCaNhanController {
     @GetMapping
     public List<PhieuGiamGiaCaNhanResponse> all() {
         return service.all();
+    }
+
+    // ✅ FE đang gọi endpoint này
+    @GetMapping("/khach-hang/{idKhachHang}")
+    public List<PhieuGiamGiaCaNhanResponse> byKhachHang(@PathVariable("idKhachHang") Integer idKhachHang) {
+        return service.byKhachHang(idKhachHang);
+    }
+
+    // (tuỳ dùng) lấy voucher cá nhân chưa dùng
+    @GetMapping("/khach-hang/{idKhachHang}/available")
+    public List<PhieuGiamGiaCaNhanResponse> myAvailable(@PathVariable("idKhachHang") Integer idKhachHang) {
+        return service.myAvailable(idKhachHang);
     }
 
     @GetMapping("/{id}")

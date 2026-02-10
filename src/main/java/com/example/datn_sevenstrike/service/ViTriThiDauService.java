@@ -33,11 +33,11 @@ public class ViTriThiDauService {
     @Transactional
     public ViTriThiDauResponse create(ViTriThiDauRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         ViTriThiDau e = mapper.map(req, ViTriThiDau.class);
         e.setId(null);
 
         if (e.getXoaMem() == null) e.setXoaMem(false);
-
 
         validate(e);
         return toResponse(repo.save(e));
@@ -46,9 +46,9 @@ public class ViTriThiDauService {
     @Transactional
     public ViTriThiDauResponse update(Integer id, ViTriThiDauRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         ViTriThiDau db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ViTriThiDau id=" + id));
-
 
         if (req.getTenViTri() != null) db.setTenViTri(req.getTenViTri());
 
@@ -61,12 +61,13 @@ public class ViTriThiDauService {
         ViTriThiDau db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ViTriThiDau id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
     private void validate(ViTriThiDau e) {
-        if (e.getTenViTri() == null || e.getTenViTri().isBlank()) throw new BadRequestEx("Thiếu ten_vi_tri");
+        if (e.getTenViTri() == null || e.getTenViTri().isBlank()) {
+            throw new BadRequestEx("Thiếu ten_vi_tri");
+        }
     }
 
     private ViTriThiDauResponse toResponse(ViTriThiDau e) {

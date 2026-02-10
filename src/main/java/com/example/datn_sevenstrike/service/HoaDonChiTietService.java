@@ -25,6 +25,12 @@ public class HoaDonChiTietService {
                 .stream().map(this::toResponse).toList();
     }
 
+    public List<HoaDonChiTietResponse> byHoaDon(Integer idHoaDon) {
+        if (idHoaDon == null) throw new BadRequestEx("Thiếu id_hoa_don");
+        return repo.findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(idHoaDon)
+                .stream().map(this::toResponse).toList();
+    }
+
     public HoaDonChiTietResponse one(Integer id) {
         HoaDonChiTiet e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy HoaDonChiTiet id=" + id));
@@ -34,30 +40,33 @@ public class HoaDonChiTietService {
     @Transactional
     public HoaDonChiTietResponse create(HoaDonChiTietRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         HoaDonChiTiet e = mapper.map(req, HoaDonChiTiet.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public HoaDonChiTietResponse update(Integer id, HoaDonChiTietRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         HoaDonChiTiet db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy HoaDonChiTiet id=" + id));
-
 
         if (req.getIdHoaDon() != null) db.setIdHoaDon(req.getIdHoaDon());
         if (req.getIdChiTietSanPham() != null) db.setIdChiTietSanPham(req.getIdChiTietSanPham());
         if (req.getSoLuong() != null) db.setSoLuong(req.getSoLuong());
         if (req.getDonGia() != null) db.setDonGia(req.getDonGia());
         if (req.getGhiChu() != null) db.setGhiChu(req.getGhiChu());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
 
+        applyDefaults(db);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -66,13 +75,20 @@ public class HoaDonChiTietService {
         HoaDonChiTiet db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy HoaDonChiTiet id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
+    }
+
+    private void applyDefaults(HoaDonChiTiet e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getGhiChu() == null) e.setGhiChu("");
     }
 
     private void validate(HoaDonChiTiet e) {
         if (e.getIdHoaDon() == null) throw new BadRequestEx("Thiếu id_hoa_don");
         if (e.getIdChiTietSanPham() == null) throw new BadRequestEx("Thiếu id_chi_tiet_san_pham");
+
+        if (e.getSoLuong() == null || e.getSoLuong() <= 0) throw new BadRequestEx("so_luong phải > 0");
+        if (e.getDonGia() == null || e.getDonGia().compareTo(BigDecimal.ZERO) < 0) throw new BadRequestEx("don_gia phải >= 0");
     }
 
     private HoaDonChiTietResponse toResponse(HoaDonChiTiet e) {

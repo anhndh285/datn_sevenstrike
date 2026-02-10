@@ -28,7 +28,6 @@ public class KhachHangService {
                 .stream().map(this::toResponse).toList();
     }
 
-    // ✅ NEW: Paging
     public Page<KhachHangResponse> page(int pageNo, int pageSize) {
         int p = Math.max(pageNo, 0);
         int s = Math.max(pageSize, 1);
@@ -50,11 +49,10 @@ public class KhachHangService {
         KhachHang e = mapper.map(req, KhachHang.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getNgayTao() == null) e.setNgayTao(LocalDateTime.now());
-        e.setNgayCapNhat(null);
-
+        applyDefaults(e, true);
         validate(e);
+        validateDuplicateCreate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -65,6 +63,10 @@ public class KhachHangService {
         KhachHang db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
 
+        // lưu lại giá trị cũ để chỉ check trùng khi có thay đổi thật
+        String oldTenTaiKhoan = db.getTenTaiKhoan();
+        String oldEmail = db.getEmail();
+
         if (req.getTenKhachHang() != null) db.setTenKhachHang(req.getTenKhachHang());
         if (req.getTenTaiKhoan() != null) db.setTenTaiKhoan(req.getTenTaiKhoan());
         if (req.getMatKhau() != null) db.setMatKhau(req.getMatKhau());
@@ -73,12 +75,16 @@ public class KhachHangService {
         if (req.getGioiTinh() != null) db.setGioiTinh(req.getGioiTinh());
         if (req.getNgaySinh() != null) db.setNgaySinh(req.getNgaySinh());
 
-        // khuyến nghị: không update nguoiTao/ngayTao
-        if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
+        // ✅ FIX: cập nhật trạng thái (toggle FE)
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
 
+        if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
         db.setNgayCapNhat(LocalDateTime.now());
 
+        applyDefaults(db, false);
         validate(db);
+        validateDuplicateUpdate(db, oldTenTaiKhoan, oldEmail);
+
         return toResponse(repo.save(db));
     }
 
@@ -88,12 +94,61 @@ public class KhachHangService {
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
         db.setXoaMem(true);
         db.setNgayCapNhat(LocalDateTime.now());
+        if (db.getNguoiCapNhat() == null) db.setNguoiCapNhat(1);
         repo.save(db);
+    }
+
+    private void applyDefaults(KhachHang e, boolean createMode) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+
+        // ✅ default trạng thái khi tạo mới
+        if (createMode && e.getTrangThai() == null) e.setTrangThai(true);
+
+        LocalDateTime now = LocalDateTime.now();
+        if (createMode && e.getNgayTao() == null) e.setNgayTao(now);
+        if (!createMode) {
+            if (e.getNgayTao() == null) {
+                // an toàn nếu DB NOT NULL
+                e.setNgayTao(now);
+            }
+        }
+        // ngayCapNhat: create để null cũng được, update set ở trên
     }
 
     private void validate(KhachHang e) {
         if (e.getTenKhachHang() == null || e.getTenKhachHang().isBlank()) {
             throw new BadRequestEx("Thiếu ten_khach_hang");
+        }
+
+        if (e.getTenTaiKhoan() == null || e.getTenTaiKhoan().isBlank()) {
+            throw new BadRequestEx("Thiếu ten_tai_khoan");
+        }
+        if (e.getEmail() == null || e.getEmail().isBlank()) {
+            throw new BadRequestEx("Thiếu email");
+        }
+    }
+
+    private void validateDuplicateCreate(KhachHang e) {
+        if (e.getTenTaiKhoan() != null && repo.existsByTenTaiKhoanAndXoaMemFalse(e.getTenTaiKhoan())) {
+            throw new BadRequestEx("Tên tài khoản đã tồn tại");
+        }
+        if (e.getEmail() != null && repo.existsByEmailAndXoaMemFalse(e.getEmail())) {
+            throw new BadRequestEx("Email đã tồn tại");
+        }
+    }
+
+    private void validateDuplicateUpdate(KhachHang e, String oldTenTaiKhoan, String oldEmail) {
+        // ✅ chỉ check trùng khi field thực sự thay đổi
+        if (e.getTenTaiKhoan() != null && !e.getTenTaiKhoan().equals(oldTenTaiKhoan)) {
+            if (repo.existsByTenTaiKhoanAndXoaMemFalseAndIdNot(e.getTenTaiKhoan(), e.getId())) {
+                throw new BadRequestEx("Tên tài khoản đã tồn tại");
+            }
+        }
+
+        if (e.getEmail() != null && !e.getEmail().equals(oldEmail)) {
+            if (repo.existsByEmailAndXoaMemFalseAndIdNot(e.getEmail(), e.getId())) {
+                throw new BadRequestEx("Email đã tồn tại");
+            }
         }
     }
 

@@ -24,6 +24,11 @@ public class PhuongThucThanhToanService {
                 .stream().map(this::toResponse).toList();
     }
 
+    public List<PhuongThucThanhToanResponse> allActive() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
     public PhuongThucThanhToanResponse one(Integer id) {
         PhuongThucThanhToan e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhuongThucThanhToan id=" + id));
@@ -36,11 +41,9 @@ public class PhuongThucThanhToanService {
         PhuongThucThanhToan e = mapper.map(req, PhuongThucThanhToan.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -50,12 +53,14 @@ public class PhuongThucThanhToanService {
         PhuongThucThanhToan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhuongThucThanhToan id=" + id));
 
-
         if (req.getTenPhuongThucThanhToan() != null) db.setTenPhuongThucThanhToan(req.getTenPhuongThucThanhToan());
         if (req.getNhaCungCap() != null) db.setNhaCungCap(req.getNhaCungCap());
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
 
+        applyDefaults(db);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -64,17 +69,23 @@ public class PhuongThucThanhToanService {
         PhuongThucThanhToan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhuongThucThanhToan id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
+    private void applyDefaults(PhuongThucThanhToan e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+
+        if (e.getTenPhuongThucThanhToan() != null) e.setTenPhuongThucThanhToan(e.getTenPhuongThucThanhToan().trim());
+        if (e.getNhaCungCap() != null) e.setNhaCungCap(e.getNhaCungCap().trim());
+    }
+
     private void validate(PhuongThucThanhToan e) {
-        if (e.getTenPhuongThucThanhToan() == null || e.getTenPhuongThucThanhToan().isBlank()) throw new BadRequestEx("Thiếu ten_phuong_thuc_thanh_toan");
+        if (e.getTenPhuongThucThanhToan() == null || e.getTenPhuongThucThanhToan().isBlank())
+            throw new BadRequestEx("Thiếu ten_phuong_thuc_thanh_toan");
     }
 
     private PhuongThucThanhToanResponse toResponse(PhuongThucThanhToan e) {
         return mapper.map(e, PhuongThucThanhToanResponse.class);
     }
 }
-
-

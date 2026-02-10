@@ -33,11 +33,11 @@ public class XuatXuService {
     @Transactional
     public XuatXuResponse create(XuatXuRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         XuatXu e = mapper.map(req, XuatXu.class);
         e.setId(null);
 
         if (e.getXoaMem() == null) e.setXoaMem(false);
-
 
         validate(e);
         return toResponse(repo.save(e));
@@ -46,9 +46,9 @@ public class XuatXuService {
     @Transactional
     public XuatXuResponse update(Integer id, XuatXuRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         XuatXu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy XuatXu id=" + id));
-
 
         if (req.getTenXuatXu() != null) db.setTenXuatXu(req.getTenXuatXu());
 
@@ -61,12 +61,13 @@ public class XuatXuService {
         XuatXu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy XuatXu id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
     private void validate(XuatXu e) {
-        if (e.getTenXuatXu() == null || e.getTenXuatXu().isBlank()) throw new BadRequestEx("Thiếu ten_xuat_xu");
+        if (e.getTenXuatXu() == null || e.getTenXuatXu().isBlank()) {
+            throw new BadRequestEx("Thiếu ten_xuat_xu");
+        }
     }
 
     private XuatXuResponse toResponse(XuatXu e) {

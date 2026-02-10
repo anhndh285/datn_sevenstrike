@@ -6,13 +6,12 @@ import com.example.datn_sevenstrike.entity.GiaoDichThanhToan;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.GiaoDichThanhToanRepository;
+import java.time.LocalDateTime;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +22,12 @@ public class GiaoDichThanhToanService {
 
     public List<GiaoDichThanhToanResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
+    public List<GiaoDichThanhToanResponse> byHoaDon(Integer idHoaDon) {
+        if (idHoaDon == null) throw new BadRequestEx("Thiếu id_hoa_don");
+        return repo.findAllByIdHoaDonAndXoaMemFalseOrderByThoiGianTaoDesc(idHoaDon)
                 .stream().map(this::toResponse).toList();
     }
 
@@ -39,15 +44,9 @@ public class GiaoDichThanhToanService {
         GiaoDichThanhToan e = mapper.map(req, GiaoDichThanhToan.class);
         e.setId(null);
 
-        // default theo DDL
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null || e.getTrangThai().isBlank()) e.setTrangThai("khoi_tao");
-
-        // DB tự set sysdatetime() => không set từ request
-        e.setThoiGianTao(null);
-        e.setThoiGianCapNhat(null);
-
+        applyDefaults(e, true);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -74,11 +73,9 @@ public class GiaoDichThanhToanService {
         if (req.getDuLieuPhanHoi() != null) db.setDuLieuPhanHoi(req.getDuLieuPhanHoi());
         if (req.getGhiChu() != null) db.setGhiChu(req.getGhiChu());
 
-        // KHÔNG cho update thoiGianTao (DB set mặc định)
-        // if (req.getThoiGianTao() != null) db.setThoiGianTao(req.getThoiGianTao()); // bỏ
-        db.setThoiGianCapNhat(LocalDateTime.now());
-
+        applyDefaults(db, false);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -91,14 +88,23 @@ public class GiaoDichThanhToanService {
         repo.save(db);
     }
 
+    private void applyDefaults(GiaoDichThanhToan e, boolean createMode) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+
+        if (e.getTrangThai() == null || e.getTrangThai().isBlank()) e.setTrangThai("khoi_tao");
+        e.setTrangThai(e.getTrangThai().trim());
+
+        // DB có default sysdatetime() cho thoi_gian_tao, nhưng entity đôi khi NOT NULL -> để an toàn:
+        if (createMode && e.getThoiGianTao() == null) e.setThoiGianTao(LocalDateTime.now());
+        e.setThoiGianCapNhat(LocalDateTime.now());
+    }
+
     private void validate(GiaoDichThanhToan e) {
         if (e.getIdHoaDon() == null) throw new BadRequestEx("Thiếu id_hoa_don");
         if (e.getIdPhuongThucThanhToan() == null) throw new BadRequestEx("Thiếu id_phuong_thuc_thanh_toan");
         if (e.getSoTien() == null || e.getSoTien().signum() <= 0) throw new BadRequestEx("so_tien phải > 0");
         if (e.getTrangThai() == null || e.getTrangThai().isBlank()) throw new BadRequestEx("Thiếu trang_thai");
 
-        // (optional) siết enum trạng thái theo DDL mô tả
-        // khoi_tao/dang_xu_ly/thanh_cong/that_bai/huy
         String st = e.getTrangThai().trim();
         if (!st.equals("khoi_tao") && !st.equals("dang_xu_ly") && !st.equals("thanh_cong")
                 && !st.equals("that_bai") && !st.equals("huy")) {

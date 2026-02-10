@@ -11,12 +11,21 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface KhachHangRepository extends JpaRepository<KhachHang, Integer> {
 
-    Optional<KhachHang> findByIdAndXoaMemFalse(Integer id);
-
     List<KhachHang> findAllByXoaMemFalseOrderByIdDesc();
 
+    Optional<KhachHang> findByIdAndXoaMemFalse(Integer id);
+
+    Page<KhachHang> findAllByXoaMemFalse(Pageable pageable);
+
+    // ✅ AuthService dùng
     Optional<KhachHang> findByTenTaiKhoanAndXoaMemFalse(String tenTaiKhoan);
 
-    // ✅ NEW: paging server-side
-    Page<KhachHang> findAllByXoaMemFalse(Pageable pageable);
+    // ✅ Validate trùng (nếu DB có unique filtered theo xoa_mem)
+    boolean existsByTenTaiKhoanAndXoaMemFalse(String tenTaiKhoan);
+
+    boolean existsByEmailAndXoaMemFalse(String email);
+
+    boolean existsByTenTaiKhoanAndXoaMemFalseAndIdNot(String tenTaiKhoan, Integer id);
+
+    boolean existsByEmailAndXoaMemFalseAndIdNot(String email, Integer id);
 }

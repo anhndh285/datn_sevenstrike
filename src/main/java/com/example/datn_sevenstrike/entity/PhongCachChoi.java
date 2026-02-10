@@ -5,20 +5,23 @@ import lombok.*;
 
 @Entity
 @Table(name = "phong_cach_choi")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class PhongCachChoi {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "ma_phong_cach", nullable = false, insertable = false, updatable = false)
+    @Column(name = "ma_phong_cach", insertable = false, updatable = false, length = 7)
     private String maPhongCach;
 
-    @Column(name = "ten_phong_cach", nullable = true)
+    @Column(name = "ten_phong_cach", nullable = false, length = 255)
     private String tenPhongCach;
 
-    @Column(name = "xoa_mem", nullable = true)
-    private Boolean xoaMem;
+    @Column(name = "trang_thai", nullable = false)
+    private Boolean trangThai;
 
+    @Column(name = "xoa_mem", nullable = false)
+    private Boolean xoaMem;
 }

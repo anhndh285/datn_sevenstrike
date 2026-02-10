@@ -16,11 +16,17 @@ public class PhieuGiamGiaChiTiet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne
-    @JoinColumn(name = "id_phieu_giam_gia")
+    // ✅ CHỈ DÙNG QUAN HỆ (KHÔNG DÙNG idPhieuGiamGia/idKhachHang dạng Integer nữa)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "id_phieu_giam_gia", nullable = false)
+    @ToString.Exclude
     private PhieuGiamGia phieuGiamGia;
 
-    @ManyToOne
-    @JoinColumn(name = "id_khach_hang")
-    private KhachHang khachHang; // Lưu ý: Đảm bảo bạn đã có class KhachHang.java
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "id_khach_hang", nullable = false)
+    @ToString.Exclude
+    private KhachHang khachHang;
+
+    @Column(name = "xoa_mem", nullable = false)
+    private Boolean xoaMem;
 }

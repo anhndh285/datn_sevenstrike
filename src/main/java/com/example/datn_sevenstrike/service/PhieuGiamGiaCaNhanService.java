@@ -25,6 +25,18 @@ public class PhieuGiamGiaCaNhanService {
                 .stream().map(this::toResponse).toList();
     }
 
+    public List<PhieuGiamGiaCaNhanResponse> byKhachHang(Integer idKhachHang) {
+        if (idKhachHang == null) throw new BadRequestEx("Thiếu id_khach_hang");
+        return repo.findAllByIdKhachHangAndXoaMemFalseOrderByIdDesc(idKhachHang)
+                .stream().map(this::toResponse).toList();
+    }
+
+    public List<PhieuGiamGiaCaNhanResponse> myAvailable(Integer idKhachHang) {
+        if (idKhachHang == null) throw new BadRequestEx("Thiếu id_khach_hang");
+        return repo.findAllByIdKhachHangAndDaSuDungFalseAndXoaMemFalseOrderByIdDesc(idKhachHang)
+                .stream().map(this::toResponse).toList();
+    }
+
     public PhieuGiamGiaCaNhanResponse one(Integer id) {
         PhieuGiamGiaCaNhan e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGiaCaNhan id=" + id));
@@ -34,23 +46,27 @@ public class PhieuGiamGiaCaNhanService {
     @Transactional
     public PhieuGiamGiaCaNhanResponse create(PhieuGiamGiaCaNhanRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         PhieuGiamGiaCaNhan e = mapper.map(req, PhieuGiamGiaCaNhan.class);
         e.setId(null);
 
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getDaSuDung() == null) e.setDaSuDung(false);
         if (e.getNgayNhan() == null) e.setNgayNhan(LocalDate.now());
+
+        validate(e);
+
         if (repo.existsByIdKhachHangAndIdPhieuGiamGiaAndXoaMemFalse(e.getIdKhachHang(), e.getIdPhieuGiamGia())) {
             throw new BadRequestEx("Khách đã có voucher này (xoa_mem=0)");
         }
 
-        validate(e);
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public PhieuGiamGiaCaNhanResponse update(Integer id, PhieuGiamGiaCaNhanRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         PhieuGiamGiaCaNhan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGiaCaNhan id=" + id));
 
@@ -67,7 +83,19 @@ public class PhieuGiamGiaCaNhanService {
         if (req.getNgayNhan() != null) db.setNgayNhan(req.getNgayNhan());
         if (req.getDaSuDung() != null) db.setDaSuDung(req.getDaSuDung());
 
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (db.getXoaMem() == null) db.setXoaMem(false);
+
         validate(db);
+        return toResponse(repo.save(db));
+    }
+
+    // ✅ dùng khi checkout/đặt hàng: đánh dấu đã dùng
+    @Transactional
+    public PhieuGiamGiaCaNhanResponse markUsed(Integer id) {
+        PhieuGiamGiaCaNhan db = repo.findByIdAndXoaMemFalse(id)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGiaCaNhan id=" + id));
+        db.setDaSuDung(true);
         return toResponse(repo.save(db));
     }
 
@@ -76,13 +104,14 @@ public class PhieuGiamGiaCaNhanService {
         PhieuGiamGiaCaNhan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGiaCaNhan id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
     private void validate(PhieuGiamGiaCaNhan e) {
         if (e.getIdKhachHang() == null) throw new BadRequestEx("Thiếu id_khach_hang");
         if (e.getIdPhieuGiamGia() == null) throw new BadRequestEx("Thiếu id_phieu_giam_gia");
+        if (e.getDaSuDung() == null) e.setDaSuDung(false);
+        if (e.getXoaMem() == null) e.setXoaMem(false);
     }
 
     private PhieuGiamGiaCaNhanResponse toResponse(PhieuGiamGiaCaNhan e) {

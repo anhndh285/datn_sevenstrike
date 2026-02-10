@@ -24,6 +24,11 @@ public class QuyenHanService {
                 .stream().map(this::toResponse).toList();
     }
 
+    public List<QuyenHanResponse> allActive() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
     public QuyenHanResponse one(Integer id) {
         QuyenHan e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy QuyenHan id=" + id));
@@ -36,10 +41,9 @@ public class QuyenHanService {
         QuyenHan e = mapper.map(req, QuyenHan.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -49,10 +53,13 @@ public class QuyenHanService {
         QuyenHan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy QuyenHan id=" + id));
 
-
         if (req.getTenQuyenHan() != null) db.setTenQuyenHan(req.getTenQuyenHan());
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
 
+        applyDefaults(db);
         validate(db);
+
         return toResponse(repo.save(db));
     }
 
@@ -61,12 +68,18 @@ public class QuyenHanService {
         QuyenHan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy QuyenHan id=" + id));
         db.setXoaMem(true);
-
         repo.save(db);
     }
 
+    private void applyDefaults(QuyenHan e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+        if (e.getTenQuyenHan() != null) e.setTenQuyenHan(e.getTenQuyenHan().trim());
+    }
+
     private void validate(QuyenHan e) {
-        if (e.getTenQuyenHan() == null || e.getTenQuyenHan().isBlank()) throw new BadRequestEx("Thiếu ten_quyen_han");
+        if (e.getTenQuyenHan() == null || e.getTenQuyenHan().isBlank())
+            throw new BadRequestEx("Thiếu ten_quyen_han");
     }
 
     private QuyenHanResponse toResponse(QuyenHan e) {

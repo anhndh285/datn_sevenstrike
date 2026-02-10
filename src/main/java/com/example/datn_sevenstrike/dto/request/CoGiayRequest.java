@@ -9,5 +9,6 @@ import lombok.*;
 @Builder
 public class CoGiayRequest {
     private String tenCoGiay;
+    private Boolean trangThai;
     private Boolean xoaMem;
 }

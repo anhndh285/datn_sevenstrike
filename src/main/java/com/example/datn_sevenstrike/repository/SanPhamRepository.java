@@ -6,23 +6,17 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public interface SanPhamRepository extends JpaRepository<SanPham, Integer> {
-
-    Optional<SanPham> findByIdAndXoaMemFalse(Integer id);
 
     List<SanPham> findAllByXoaMemFalseOrderByIdDesc();
 
-    // ✅ POS/Online
-    List<SanPham> findAllByXoaMemFalseAndTrangThaiKinhDoanhTrueOrderByIdDesc();
-
-    Optional<SanPham> findByIdAndXoaMemFalseAndTrangThaiKinhDoanhTrue(Integer id);
-
-    // ✅ NEW: paging server-side
     Page<SanPham> findAllByXoaMemFalse(Pageable pageable);
 
-    // ✅ NEW: paging sản phẩm đang kinh doanh
+    Optional<SanPham> findByIdAndXoaMemFalse(Integer id);
+
+    // chỉ lấy SP đang kinh doanh
+    List<SanPham> findAllByXoaMemFalseAndTrangThaiKinhDoanhTrueOrderByIdDesc();
+
     Page<SanPham> findAllByXoaMemFalseAndTrangThaiKinhDoanhTrue(Pageable pageable);
 }

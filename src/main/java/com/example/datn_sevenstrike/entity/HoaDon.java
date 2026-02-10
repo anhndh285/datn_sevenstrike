@@ -8,93 +8,82 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "hoa_don")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class HoaDon {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(name = "id_khach_hang", nullable = false)
+    @Column(name = "id_khach_hang")
     private Integer idKhachHang;
 
-    @Column(name = "id_nhan_vien", nullable = false)
+    @Column(name = "id_nhan_vien")
     private Integer idNhanVien;
 
-    @Column(name = "id_phieu_giam_gia", nullable = false)
+    @Column(name = "id_phieu_giam_gia")
     private Integer idPhieuGiamGia;
 
-    @Column(name = "id_phieu_giam_gia_ca_nhan", nullable = false)
+    @Column(name = "id_phieu_giam_gia_ca_nhan")
     private Integer idPhieuGiamGiaCaNhan;
 
-    @Column(name = "ma_hoa_don", nullable = false, insertable = false, updatable = false)
+    @Column(name = "ma_hoa_don", insertable = false, updatable = false, length = 7)
     private String maHoaDon;
 
-    @Column(name = "loai_don", nullable = true)
+    // 0: tại quầy | 1: giao hàng/online
+    @Column(name = "loai_don", nullable = false)
     private Boolean loaiDon;
 
-    @Column(name = "phi_van_chuyen", nullable = true)
+    @Column(name = "phi_van_chuyen", nullable = false, precision = 18, scale = 2)
     private BigDecimal phiVanChuyen;
 
-    @Column(name = "tong_tien", nullable = true)
+    @Column(name = "tong_tien", nullable = false, precision = 18, scale = 2)
     private BigDecimal tongTien;
 
-    @Column(name = "tong_tien_sau_giam", nullable = true)
+    @Column(name = "tong_tien_sau_giam", nullable = false, precision = 18, scale = 2)
     private BigDecimal tongTienSauGiam;
 
-    @Column(name = "tong_tien_giam", nullable = false, insertable = false, updatable = false)
+    @Column(name = "tong_tien_giam", insertable = false, updatable = false, precision = 18, scale = 2)
     private BigDecimal tongTienGiam;
 
-    @Column(name = "ten_khach_hang", nullable = true)
+    @Column(name = "ten_khach_hang", nullable = false, length = 255)
     private String tenKhachHang;
 
-    @Column(name = "dia_chi_khach_hang", nullable = true)
+    @Column(name = "dia_chi_khach_hang", nullable = false, length = 255)
     private String diaChiKhachHang;
 
-    @Column(name = "so_dien_thoai_khach_hang", nullable = true)
+    @Column(name = "so_dien_thoai_khach_hang", nullable = false, length = 12)
     private String soDienThoaiKhachHang;
 
-    @Column(name = "email_khach_hang", nullable = false)
+    @Column(name = "email_khach_hang", length = 255)
     private String emailKhachHang;
 
-    @Column(name = "trang_thai_hien_tai", nullable = true)
-    private String trangThaiHienTai;
+    // CHỐT: int code (1..7)
+    @Column(name = "trang_thai_hien_tai", nullable = false)
+    private Integer trangThaiHienTai;
 
-    @Column(name = "ngay_tao", nullable = true)
+    @Column(name = "ngay_tao", nullable = false)
     private LocalDateTime ngayTao;
 
-    @Column(name = "ngay_thanh_toan", nullable = false)
+    @Column(name = "ngay_thanh_toan")
     private LocalDateTime ngayThanhToan;
 
-    @Column(name = "ghi_chu", nullable = false)
+    @Column(name = "ghi_chu", length = 255)
     private String ghiChu;
 
-    @Column(name = "xoa_mem", nullable = true)
+    @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
 
-    @Column(name = "nguoi_tao", nullable = false)
+    @Column(name = "nguoi_tao")
     private Integer nguoiTao;
 
-    @Column(name = "ngay_cap_nhat", nullable = false)
+    @Column(name = "ngay_cap_nhat")
     private LocalDateTime ngayCapNhat;
 
-    @Column(name = "nguoi_cap_nhat", nullable = false)
+    @Column(name = "nguoi_cap_nhat")
     private Integer nguoiCapNhat;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_khach_hang", insertable = false, updatable = false)
-    private KhachHang khachHang;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_nhan_vien", insertable = false, updatable = false)
-    private NhanVien nhanVien;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_phieu_giam_gia", insertable = false, updatable = false)
-    private PhieuGiamGia phieuGiamGia;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_phieu_giam_gia_ca_nhan", insertable = false, updatable = false)
-    private PhieuGiamGiaCaNhan phieuGiamGiaCaNhan;
-
 }

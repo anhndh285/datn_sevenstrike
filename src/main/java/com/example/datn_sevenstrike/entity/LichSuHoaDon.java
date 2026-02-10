@@ -21,20 +21,17 @@ public class LichSuHoaDon {
     @Column(name = "id_hoa_don", nullable = false)
     private Integer idHoaDon;
 
-    @Column(name = "trang_thai", nullable = false, length = 50)
-    private String trangThai;
+    // CHỐT: int code (1..7)
+    @Column(name = "trang_thai", nullable = false)
+    private Integer trangThai;
 
-    // DB default sysdatetime()
-    @Column(name = "thoi_gian", nullable = false, insertable = false, updatable = false)
+    // DB default sysdatetime() -> không set từ BE
+    @Column(name = "thoi_gian", insertable = false, updatable = false)
     private LocalDateTime thoiGian;
 
-    @Column(name = "ghi_chu", nullable = true, length = 255)
+    @Column(name = "ghi_chu", length = 255)
     private String ghiChu;
 
     @Column(name = "xoa_mem", nullable = false)
-    private Boolean xoaMem = false;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_hoa_don", insertable = false, updatable = false)
-    private HoaDon hoaDon;
+    private Boolean xoaMem;
 }

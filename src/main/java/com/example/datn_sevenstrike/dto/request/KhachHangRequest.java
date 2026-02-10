@@ -1,8 +1,8 @@
 package com.example.datn_sevenstrike.dto.request;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import lombok.*;
+
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -10,16 +10,20 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class KhachHangRequest {
+
     private String tenKhachHang;
     private String tenTaiKhoan;
     private String matKhau;
+
     private String email;
     private String soDienThoai;
+
     private Boolean gioiTinh;
     private LocalDate ngaySinh;
+
+    private Boolean trangThai;
     private Boolean xoaMem;
-    private LocalDateTime ngayTao;
+
     private Integer nguoiTao;
-    private LocalDateTime ngayCapNhat;
     private Integer nguoiCapNhat;
 }

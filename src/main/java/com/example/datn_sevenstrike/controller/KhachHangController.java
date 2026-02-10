@@ -18,12 +18,18 @@ public class KhachHangController {
 
     private final KhachHangService service;
 
+    // ✅ Alias cho FE đang gọi /all
+    @GetMapping("/all")
+    public List<KhachHangResponse> allAlias() {
+        return service.all();
+    }
+
+    // ✅ Endpoint chuẩn (giữ lại)
     @GetMapping
     public List<KhachHangResponse> all() {
         return service.all();
     }
 
-    // ✅ NEW: phân trang (FE đang dùng pageNo/pageSize)
     @GetMapping("/page")
     public Page<KhachHangResponse> page(
             @RequestParam(defaultValue = "0") int pageNo,
@@ -32,7 +38,7 @@ public class KhachHangController {
         return service.page(pageNo, pageSize);
     }
 
-    // ✅ FIX: chỉ match id là số để tránh /page bị hiểu là id
+    // ✅ chỉ match số để tránh nuốt nhầm 'page', 'all'
     @GetMapping("/{id:\\d+}")
     public KhachHangResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
@@ -53,3 +59,4 @@ public class KhachHangController {
         service.delete(id);
     }
 }
+

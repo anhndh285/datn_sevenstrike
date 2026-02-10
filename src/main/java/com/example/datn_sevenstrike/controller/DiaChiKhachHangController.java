@@ -22,8 +22,15 @@ public class DiaChiKhachHangController {
         return service.all();
     }
 
-    @GetMapping("/{id}")
-    public DiaChiKhachHangResponse one(@PathVariable("id") Integer id) {
+    // ✅ FE đang gọi đúng dạng này
+    @GetMapping("/khach-hang/{khachHangId:\\d+}")
+    public List<DiaChiKhachHangResponse> byKhachHang(@PathVariable Integer khachHangId) {
+        return service.byKhachHang(khachHangId);
+    }
+
+    // ✅ chỉ match số để khỏi nuốt nhầm "khach-hang"
+    @GetMapping("/{id:\\d+}")
+    public DiaChiKhachHangResponse one(@PathVariable Integer id) {
         return service.one(id);
     }
 
@@ -32,13 +39,13 @@ public class DiaChiKhachHangController {
         return service.create(req);
     }
 
-    @PutMapping("/{id}")
-    public DiaChiKhachHangResponse update(@PathVariable("id") Integer id, @Valid @RequestBody DiaChiKhachHangRequest req) {
+    @PutMapping("/{id:\\d+}")
+    public DiaChiKhachHangResponse update(@PathVariable Integer id, @Valid @RequestBody DiaChiKhachHangRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable("id") Integer id) {
+    @DeleteMapping("/{id:\\d+}")
+    public void delete(@PathVariable Integer id) {
         service.delete(id);
     }
 }

@@ -2,12 +2,23 @@ package com.example.datn_sevenstrike.repository;
 
 import com.example.datn_sevenstrike.entity.MauSac;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
+import java.util.List;
+import java.util.Optional;
+
 public interface MauSacRepository extends JpaRepository<MauSac, Integer> {
 
-    java.util.Optional<MauSac> findByIdAndXoaMemFalse(Integer id);
-    java.util.List<MauSac> findAllByXoaMemFalseOrderByIdDesc();
+    List<MauSac> findAllByXoaMemFalseOrderByIdDesc();
 
+    List<MauSac> findAllByTrangThaiTrueAndXoaMemFalseOrderByIdDesc();
+
+    Optional<MauSac> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenMauSacIgnoreCaseAndXoaMemFalse(String tenMauSac);
+
+    boolean existsByMaMauHexIgnoreCaseAndXoaMemFalse(String maMauHex);
+
+    boolean existsByTenMauSacIgnoreCaseAndXoaMemFalseAndIdNot(String tenMauSac, Integer id);
+
+    boolean existsByMaMauHexIgnoreCaseAndXoaMemFalseAndIdNot(String maMauHex, Integer id);
 }

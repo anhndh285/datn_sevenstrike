@@ -3,9 +3,10 @@ package com.example.datn_sevenstrike.controller;
 import com.example.datn_sevenstrike.dto.request.MauSacRequest;
 import com.example.datn_sevenstrike.dto.response.MauSacResponse;
 import com.example.datn_sevenstrike.service.MauSacService;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/mau-sac")
@@ -17,6 +18,11 @@ public class MauSacController {
     @GetMapping
     public List<MauSacResponse> all() {
         return service.all();
+    }
+
+    @GetMapping("/active")
+    public List<MauSacResponse> allActive() {
+        return service.allActive();
     }
 
     @GetMapping("/{id}")

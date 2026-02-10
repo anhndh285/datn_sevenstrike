@@ -1,11 +1,18 @@
 package com.example.datn_sevenstrike.dto.request;
 
-import java.math.BigDecimal;
-import lombok.Data;
+import lombok.*;
 
-@Data
+import java.math.BigDecimal;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ChiTietSanPhamRequest {
+
     private Integer idSanPham;
+
     private Integer idMauSac;
     private Integer idKichThuoc;
     private Integer idLoaiSan;
@@ -17,4 +24,9 @@ public class ChiTietSanPhamRequest {
 
     private Boolean trangThai;
     private String ghiChu;
+
+    private Boolean xoaMem;
+
+    private Integer nguoiTao;
+    private Integer nguoiCapNhat;
 }
