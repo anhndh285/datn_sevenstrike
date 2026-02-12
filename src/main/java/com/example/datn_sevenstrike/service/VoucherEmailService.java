@@ -1,92 +1,143 @@
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.entity.PhieuGiamGia;
-import com.example.datn_sevenstrike.repository.PhieuGiamGiaRepository;
 import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
+import java.time.LocalDate;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class VoucherEmailService {
 
     private final JavaMailSender mailSender;
-    private final PhieuGiamGiaRepository phieuGiamGiaRepository;
 
-    @Async
-    public void sendVoucherEmailAsync(List<String> emails, Integer voucherId) {
-        try {
-            PhieuGiamGia voucher = phieuGiamGiaRepository.findById(voucherId).orElse(null);
-            if (voucher == null) {
-                System.err.println("[MAIL] Không tìm thấy voucherId=" + voucherId);
-                return;
-            }
+    // ✅ File phải nằm tại: src/main/resources/templates/voucher_email_template.html
+    private static final String TEMPLATE_PATH = "templates/voucher_email_template.html";
 
-            NumberFormat formatter = NumberFormat.getInstance(new Locale("vi", "VN"));
-            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // ✅ File phải nằm tại: src/main/resources/static/logo.png
+    private static final String LOGO_PATH = "static/logo.png";
 
-            boolean giamPhanTram =
-                    voucher.getGiaTriGiamGia() != null && voucher.getGiaTriGiamGia().compareTo(BigDecimal.ZERO) > 0;
+    private static final DateTimeFormatter FMT_NGAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final Locale LOCALE_VI = new Locale("vi", "VN");
 
-            String hienThiGiam = giamPhanTram
-                    ? (voucher.getGiaTriGiamGia() == null ? "0"
-                    : voucher.getGiaTriGiamGia().stripTrailingZeros().toPlainString()) + "%"
-                    : formatter.format(voucher.getSoTienGiamToiDa() == null
-                    ? BigDecimal.ZERO : voucher.getSoTienGiamToiDa()) + " VNĐ";
+    public void sendVoucherEmail(String toEmail, PhieuGiamGia phieu) throws Exception {
+        if (toEmail == null || toEmail.isBlank()) return;
+        if (phieu == null) return;
 
-            // ✅ Load template UTF-8 chuẩn
-            ClassPathResource htmlResource = new ClassPathResource("voucher_email_template.html");
-            String htmlTemplate;
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(htmlResource.getInputStream(), StandardCharsets.UTF_8))) {
-                htmlTemplate = reader.lines().collect(Collectors.joining(System.lineSeparator()));
-            }
+        String subject = buildSubject(phieu);
+        String html = renderTemplate(phieu);
 
-            String finalHtmlContent = htmlTemplate
-                    .replace("{{MA_GIAM_GIA}}", String.valueOf(voucher.getMaPhieuGiamGia()))
-                    .replace("{{GIA_TRI_GIAM}}", hienThiGiam)
-                    .replace("{{HOA_DON_TOI_THIEU}}", formatter.format(voucher.getHoaDonToiThieu() == null
-                            ? BigDecimal.ZERO : voucher.getHoaDonToiThieu()))
-                    .replace("{{NGAY_KET_THUC}}", voucher.getNgayKetThuc() == null
-                            ? "---" : voucher.getNgayKetThuc().format(dateFormatter))
-                    .replace("{{CURRENT_YEAR}}", String.valueOf(Year.now().getValue()));
+        MimeMessage message = mailSender.createMimeMessage();
 
-            for (String email : emails) {
-                try {
-                    MimeMessage message = mailSender.createMimeMessage();
-                    MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        // MULTIPART_MODE_MIXED_RELATED giúp inline image ổn định hơn
+        MimeMessageHelper helper = new MimeMessageHelper(
+                message,
+                MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
+                StandardCharsets.UTF_8.name()
+        );
 
-                    // ✅ QUAN TRỌNG: setFrom
-                    helper.setFrom("sevenstrike8@gmail.com", "SevenStrike");
+        helper.setTo(toEmail.trim());
+        helper.setSubject(subject);
+        helper.setText(html, true);
 
-                    helper.setTo(email);
-                    helper.setSubject("Mã giảm giá đặc biệt từ SevenStrike");
-                    helper.setText(finalHtmlContent, true);
+        addInlineLogo(helper);
 
-                    mailSender.send(message);
-                } catch (Exception one) {
-                    System.err.println("[MAIL] Gửi fail tới: " + email);
-                    one.printStackTrace();
-                }
-            }
-        } catch (Exception ex) {
-            System.err.println("[MAIL] Lỗi tổng khi gửi voucherId=" + voucherId);
-            ex.printStackTrace();
+        mailSender.send(message);
+    }
+
+    private void addInlineLogo(MimeMessageHelper helper) {
+        Resource logo = new ClassPathResource(LOGO_PATH);
+        if (!logo.exists()) {
+            log.warn("Không tìm thấy logo inline: {} (hãy đặt file tại src/main/resources/{})", LOGO_PATH, LOGO_PATH);
+            return;
         }
+        try {
+            // ✅ Tự suy luận content-type
+            helper.addInline("logo", logo);
+        } catch (Exception e) {
+            log.warn("Gắn logo inline thất bại", e);
+        }
+    }
+
+    private String buildSubject(PhieuGiamGia phieu) {
+        String ma = safe(phieu.getMaPhieuGiamGia());
+        String ten = safe(phieu.getTenPhieuGiamGia());
+        if (!ten.isBlank()) {
+            return "[SevenStrike] Phiếu giảm giá " + ma + " - " + ten;
+        }
+        return "[SevenStrike] Phiếu giảm giá " + ma;
+    }
+
+    private String renderTemplate(PhieuGiamGia phieu) throws Exception {
+        String template = readTemplate();
+
+        String ma = safe(phieu.getMaPhieuGiamGia());
+        String giaTriGiam = buildGiaTriGiam(phieu.getLoaiPhieuGiamGia(), phieu.getGiaTriGiamGia());
+        String hoaDonToiThieu = formatVnd(phieu.getHoaDonToiThieu());
+        String ngayKetThuc = formatNgay(phieu.getNgayKetThuc());
+        String year = String.valueOf(Year.now().getValue());
+
+        return template
+                .replace("{{MA_GIAM_GIA}}", ma)
+                .replace("{{GIA_TRI_GIAM}}", giaTriGiam)
+                .replace("{{HOA_DON_TOI_THIEU}}", hoaDonToiThieu)
+                .replace("{{NGAY_KET_THUC}}", ngayKetThuc)
+                .replace("{{CURRENT_YEAR}}", year);
+    }
+
+    private String readTemplate() throws Exception {
+        ClassPathResource res = new ClassPathResource(TEMPLATE_PATH);
+        if (!res.exists()) {
+            // ❌ Không fallback nữa để bắt lỗi “đặt sai chỗ”
+            throw new IllegalStateException(
+                    "Không tìm thấy template email: " + TEMPLATE_PATH
+                            + ". Hãy đặt file tại: src/main/resources/" + TEMPLATE_PATH
+            );
+        }
+        try (var is = res.getInputStream()) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private String buildGiaTriGiam(Boolean loaiGiamTheoTien, BigDecimal giaTri) {
+        BigDecimal v = (giaTri == null) ? BigDecimal.ZERO : giaTri;
+        boolean giamTheoTien = Boolean.TRUE.equals(loaiGiamTheoTien);
+
+        if (!giamTheoTien) {
+            String num = v.stripTrailingZeros().toPlainString();
+            return num + "%";
+        }
+
+        return formatVnd(v) + " VNĐ";
+    }
+
+    private String formatVnd(BigDecimal v) {
+        BigDecimal x = (v == null) ? BigDecimal.ZERO : v;
+        NumberFormat nf = NumberFormat.getInstance(LOCALE_VI);
+        nf.setMaximumFractionDigits(0);
+        nf.setMinimumFractionDigits(0);
+        return nf.format(x);
+    }
+
+    private String formatNgay(LocalDate d) {
+        if (d == null) return "";
+        return d.format(FMT_NGAY);
+    }
+
+    private String safe(String s) {
+        return s == null ? "" : s.trim();
     }
 }

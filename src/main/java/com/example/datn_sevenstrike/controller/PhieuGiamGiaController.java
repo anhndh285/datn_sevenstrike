@@ -1,12 +1,13 @@
 package com.example.datn_sevenstrike.controller;
 
+import com.example.datn_sevenstrike.dto.request.GuiMailPhieuGiamGiaRequest;
 import com.example.datn_sevenstrike.dto.request.PhieuGiamGiaRequest;
+import com.example.datn_sevenstrike.dto.response.GuiMailPhieuGiamGiaResponse;
 import com.example.datn_sevenstrike.dto.response.PhieuGiamGiaResponse;
 import com.example.datn_sevenstrike.service.PhieuGiamGiaService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/phieu-giam-gia")
@@ -44,5 +45,17 @@ public class PhieuGiamGiaController {
     @GetMapping("/{id}/khach-hang-ids")
     public List<Integer> getCustomerIdsByVoucher(@PathVariable Integer id) {
         return service.getCustomerIdsByVoucher(id);
+    }
+
+    // ✅ FE: lấy danh sách KH đã gửi mail phiếu này
+    @GetMapping("/{id}/khach-hang-da-gui-ids")
+    public List<Integer> getKhachHangDaGuiIds(@PathVariable Integer id) {
+        return service.getKhachHangDaGuiIds(id);
+    }
+
+    // ✅ FE: gửi mail cho danh sách KH (không gửi trùng)
+    @PostMapping("/{id}/gui-mail")
+    public GuiMailPhieuGiamGiaResponse guiMail(@PathVariable Integer id, @RequestBody GuiMailPhieuGiamGiaRequest req) {
+        return service.guiMail(id, req);
     }
 }

@@ -1,6 +1,8 @@
 package com.example.datn_sevenstrike.service;
 
+import com.example.datn_sevenstrike.dto.request.GuiMailPhieuGiamGiaRequest;
 import com.example.datn_sevenstrike.dto.request.PhieuGiamGiaRequest;
+import com.example.datn_sevenstrike.dto.response.GuiMailPhieuGiamGiaResponse;
 import com.example.datn_sevenstrike.dto.response.PhieuGiamGiaResponse;
 import com.example.datn_sevenstrike.entity.KhachHang;
 import com.example.datn_sevenstrike.entity.PhieuGiamGia;
@@ -14,16 +16,13 @@ import com.example.datn_sevenstrike.repository.PhieuGiamGiaChiTietRepository;
 import com.example.datn_sevenstrike.repository.PhieuGiamGiaRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -46,7 +45,7 @@ public class PhieuGiamGiaService {
 
     public PhieuGiamGiaResponse one(Integer id) {
         PhieuGiamGia e = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGia id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
         return toResponse(e);
     }
 
@@ -73,7 +72,7 @@ public class PhieuGiamGiaService {
         PhieuGiamGia saved = repo.saveAndFlush(e);
 
         if (caNhan) {
-            replaceVoucherCaNhan(saved.getId(), ids, true);
+            replaceVoucherCaNhan(saved.getId(), ids);
             syncChiTietForUi(saved, ids);
         } else {
             caNhanRepo.softDeleteAliveByVoucherId(saved.getId());
@@ -83,22 +82,15 @@ public class PhieuGiamGiaService {
         return toResponse(saved);
     }
 
-    /**
-     * UPDATE:
-     * - Nếu req.idKhachHangs != null => user muốn cấu hình voucher cá nhân theo list (bắt buộc list có phần tử)
-     * - Nếu req.idKhachHangs == null => không động tới danh sách KH (giữ trạng thái cá nhân hiện tại nếu đang là cá nhân)
-     * - Không cho update xoaMem qua request.
-     */
     @Transactional
     public PhieuGiamGiaResponse update(Integer id, PhieuGiamGiaRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
 
         PhieuGiamGia db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGia id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
 
         boolean dbIsCaNhan = hasAnyAliveCaNhan(id);
 
-        // ===== map field =====
         if (req.getTenPhieuGiamGia() != null) db.setTenPhieuGiamGia(req.getTenPhieuGiamGia());
         if (req.getLoaiPhieuGiamGia() != null) db.setLoaiPhieuGiamGia(req.getLoaiPhieuGiamGia());
         if (req.getGiaTriGiamGia() != null) db.setGiaTriGiamGia(req.getGiaTriGiamGia());
@@ -111,16 +103,12 @@ public class PhieuGiamGiaService {
         if (req.getNgayBatDau() != null) db.setNgayBatDau(req.getNgayBatDau());
         if (req.getNgayKetThuc() != null) db.setNgayKetThuc(req.getNgayKetThuc());
 
-        // ✅ FIX: cho phép update trạng thái độc lập (FE gạt on/off)
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-
         if (req.getMoTa() != null) db.setMoTa(req.getMoTa());
 
         applyDefaults(db);
 
-        // ===== xử lý cá nhân theo request =====
         boolean reqHasCustomerListField = (req.getIdKhachHangs() != null);
-
         List<Integer> idsReq = normalizeCustomerIds(req.getIdKhachHangs());
 
         boolean finalIsCaNhan = dbIsCaNhan;
@@ -129,13 +117,11 @@ public class PhieuGiamGiaService {
             finalIsCaNhan = true;
         }
 
-        // ✅ FIX: voucher cá nhân nhưng request KHÔNG gửi list => lấy list hiện có để validate
         List<Integer> idsValidate = idsReq;
         if (finalIsCaNhan && !reqHasCustomerListField) {
             idsValidate = getCustomerIdsByVoucher(id);
         }
 
-        // ===== chốt so_luong_su_dung (lượt còn lại) =====
         if (finalIsCaNhan) {
             if (reqHasCustomerListField) {
                 db.setSoLuongSuDung(idsReq.size());
@@ -146,19 +132,17 @@ public class PhieuGiamGiaService {
             if (db.getSoLuongSuDung() == null) db.setSoLuongSuDung(0);
         }
 
-        // ✅ validate bằng idsValidate (đặc biệt khi chỉ đổi trạng thái)
         validate(db, finalIsCaNhan, idsValidate);
 
         PhieuGiamGia saved = repo.saveAndFlush(db);
 
-        // ===== đồng bộ bảng cá nhân/chi tiết =====
         if (dbIsCaNhan && !finalIsCaNhan) {
             caNhanRepo.softDeleteAliveByVoucherId(saved.getId());
             chiTietRepo.deleteByPhieuGiamGia(saved);
         }
 
         if (finalIsCaNhan && reqHasCustomerListField) {
-            replaceVoucherCaNhan(saved.getId(), idsReq, false);
+            replaceVoucherCaNhan(saved.getId(), idsReq);
             syncChiTietForUi(saved, idsReq);
         }
 
@@ -173,7 +157,7 @@ public class PhieuGiamGiaService {
     @Transactional
     public void delete(Integer id) {
         PhieuGiamGia db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhieuGiamGia id=" + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
 
         db.setXoaMem(true);
         repo.save(db);
@@ -201,6 +185,64 @@ public class PhieuGiamGiaService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+    }
+
+    // ========================= API phục vụ FE =========================
+
+    public List<Integer> getKhachHangDaGuiIds(Integer voucherId) {
+        repo.findByIdAndXoaMemFalse(voucherId)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
+        return caNhanRepo.findAllIdKhachHangDaGuiByVoucherId(voucherId);
+    }
+
+    @Transactional
+    public GuiMailPhieuGiamGiaResponse guiMail(Integer voucherId, GuiMailPhieuGiamGiaRequest req) {
+        PhieuGiamGia phieu = repo.findByIdAndXoaMemFalse(voucherId)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
+
+        List<Integer> ids = normalizeCustomerIds(req != null ? req.getIdKhachHangs() : null);
+        if (ids.isEmpty()) throw new BadRequestEx("Vui lòng chọn ít nhất 1 khách hàng để gửi mail");
+
+        Map<Integer, KhachHang> khById = khachHangRepo.findAllById(ids).stream()
+                .collect(Collectors.toMap(KhachHang::getId, x -> x));
+
+        int guiThanhCong = 0;
+        int boQua = 0;
+
+        for (Integer idKh : ids) {
+            KhachHang kh = khById.get(idKh);
+            String email = (kh != null && kh.getEmail() != null) ? kh.getEmail().trim() : "";
+
+            if (email.isBlank()) {
+                boQua++;
+                continue;
+            }
+
+            LocalDateTime thoiGianGui = LocalDateTime.now();
+
+            // ✅ reserve trước để chặn gửi trùng (double click / request song song)
+            int reserved = caNhanRepo.markDaGuiMailNeuChuaGui(voucherId, idKh, thoiGianGui);
+            if (reserved <= 0) {
+                boQua++;
+                continue;
+            }
+
+            try {
+                // ✅ gửi theo template + inline logo
+                voucherEmailService.sendVoucherEmail(email, phieu);
+                guiThanhCong++;
+            } catch (Exception ex) {
+                // ✅ gửi lỗi thì rollback để lần sau còn gửi lại được
+                caNhanRepo.rollbackDaGuiMailNeuGuiLoi(voucherId, idKh, thoiGianGui);
+                boQua++;
+            }
+        }
+
+        return GuiMailPhieuGiamGiaResponse.builder()
+                .soLuongGuiThanhCong(guiThanhCong)
+                .soLuongBoQua(boQua)
+                .danhSachDaGuiIds(caNhanRepo.findAllIdKhachHangDaGuiByVoucherId(voucherId))
+                .build();
     }
 
     // ========================= Helpers =========================
@@ -236,9 +278,7 @@ public class PhieuGiamGiaService {
         if (e.getMoTa() != null) e.setMoTa(e.getMoTa().trim());
 
         if (e.getGiaTriGiamGia() == null) e.setGiaTriGiamGia(BigDecimal.ZERO);
-
         if (e.getHoaDonToiThieu() == null) e.setHoaDonToiThieu(BigDecimal.ZERO);
-
         if (e.getSoLuongSuDung() == null) e.setSoLuongSuDung(0);
     }
 
@@ -280,43 +320,64 @@ public class PhieuGiamGiaService {
         }
     }
 
-    private void replaceVoucherCaNhan(Integer voucherId, List<Integer> idKhachHangs, boolean shouldSendEmail) {
-        caNhanRepo.softDeleteAliveByVoucherId(voucherId);
+    /**
+     * ✅ Preserve da_gui_mail/ngay_gui_mail khi đổi danh sách KH:
+     * - Không reset trạng thái đã gửi
+     */
+    private void replaceVoucherCaNhan(Integer voucherId, List<Integer> idKhachHangs) {
+        List<Integer> ids = normalizeCustomerIds(idKhachHangs);
 
-        List<String> emails = new ArrayList<>();
+        List<PhieuGiamGiaCaNhan> all = caNhanRepo.findAllByIdPhieuGiamGiaOrderByIdDesc(voucherId);
+
+        Map<Integer, PhieuGiamGiaCaNhan> latestByKh = new HashMap<>();
+        for (PhieuGiamGiaCaNhan r : all) {
+            if (r.getIdKhachHang() != null && !latestByKh.containsKey(r.getIdKhachHang())) {
+                latestByKh.put(r.getIdKhachHang(), r);
+            }
+        }
+
+        List<PhieuGiamGiaCaNhan> needSoftDelete = new ArrayList<>();
+        for (PhieuGiamGiaCaNhan r : all) {
+            if (Boolean.FALSE.equals(r.getXoaMem())
+                    && r.getIdKhachHang() != null
+                    && !ids.contains(r.getIdKhachHang())) {
+                r.setXoaMem(true);
+                needSoftDelete.add(r);
+            }
+        }
+        if (!needSoftDelete.isEmpty()) caNhanRepo.saveAll(needSoftDelete);
+
+        Set<Integer> aliveKh = all.stream()
+                .filter(r -> Boolean.FALSE.equals(r.getXoaMem()))
+                .map(PhieuGiamGiaCaNhan::getIdKhachHang)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
         List<PhieuGiamGiaCaNhan> news = new ArrayList<>();
 
-        for (Integer idKh : idKhachHangs) {
-            KhachHang kh = khachHangRepo.findById(idKh)
-                    .orElseThrow(() -> new BadRequestEx("Không tìm thấy khách hàng id=" + idKh));
+        for (Integer idKh : ids) {
+            if (aliveKh.contains(idKh)) continue;
 
-            if (caNhanRepo.existsByIdKhachHangAndIdPhieuGiamGiaAndXoaMemFalse(kh.getId(), voucherId)) {
-                continue;
-            }
+            KhachHang kh = khachHangRepo.findById(idKh)
+                    .orElseThrow(() -> new BadRequestEx("Không tìm thấy khách hàng"));
+
+            PhieuGiamGiaCaNhan old = latestByKh.get(idKh);
+
+            Boolean daGuiMail = (old != null && Boolean.TRUE.equals(old.getDaGuiMail()));
+            LocalDateTime ngayGuiMail = (old != null) ? old.getNgayGuiMail() : null;
 
             news.add(PhieuGiamGiaCaNhan.builder()
                     .idKhachHang(kh.getId())
                     .idPhieuGiamGia(voucherId)
                     .ngayNhan(LocalDate.now())
                     .daSuDung(false)
+                    .daGuiMail(daGuiMail != null ? daGuiMail : false)
+                    .ngayGuiMail(ngayGuiMail)
                     .xoaMem(false)
                     .build());
-
-            if (kh.getEmail() != null && !kh.getEmail().isBlank()) {
-                emails.add(kh.getEmail().trim());
-            }
         }
 
         if (!news.isEmpty()) caNhanRepo.saveAll(news);
-
-        if (shouldSendEmail && !emails.isEmpty()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    voucherEmailService.sendVoucherEmailAsync(emails, voucherId);
-                }
-            });
-        }
     }
 
     private void syncChiTietForUi(PhieuGiamGia saved, List<Integer> idKhachHangs) {
@@ -325,7 +386,7 @@ public class PhieuGiamGiaService {
         List<PhieuGiamGiaChiTiet> listCt = new ArrayList<>();
         for (Integer idKh : idKhachHangs) {
             KhachHang kh = khachHangRepo.findById(idKh)
-                    .orElseThrow(() -> new BadRequestEx("Không tìm thấy khách hàng id=" + idKh));
+                    .orElseThrow(() -> new BadRequestEx("Không tìm thấy khách hàng"));
 
             listCt.add(PhieuGiamGiaChiTiet.builder()
                     .phieuGiamGia(saved)

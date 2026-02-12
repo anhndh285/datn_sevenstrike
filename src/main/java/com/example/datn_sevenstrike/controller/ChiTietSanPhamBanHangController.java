@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/chi-tiet-san-pham", "/api/admin/chi-tiet-san-pham"})
+@RequestMapping("/api/chi-tiet-san-pham")
 @RequiredArgsConstructor
 public class ChiTietSanPhamBanHangController {
 

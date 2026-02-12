@@ -1,9 +1,9 @@
 package com.example.datn_sevenstrike.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import lombok.*;
 
 @Entity
 @Table(name = "phieu_giam_gia_ca_nhan")
@@ -32,6 +32,14 @@ public class PhieuGiamGiaCaNhan {
 
     @Column(name = "da_su_dung", nullable = false)
     private Boolean daSuDung;
+
+    // ✅ NEW
+    @Column(name = "da_gui_mail", nullable = false)
+    private Boolean daGuiMail;
+
+    // ✅ NEW
+    @Column(name = "ngay_gui_mail")
+    private LocalDateTime ngayGuiMail;
 
     @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
