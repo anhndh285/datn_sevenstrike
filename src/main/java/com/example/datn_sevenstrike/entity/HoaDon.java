@@ -31,6 +31,9 @@ public class HoaDon {
     @Column(name = "id_phieu_giam_gia_ca_nhan")
     private Integer idPhieuGiamGiaCaNhan;
 
+    @Column(name = "id_giao_ca")
+    private Integer idGiaoCa;
+
     @Column(name = "ma_hoa_don", insertable = false, updatable = false, length = 7)
     private String maHoaDon;
 
@@ -62,7 +65,7 @@ public class HoaDon {
     @Column(name = "email_khach_hang", length = 255)
     private String emailKhachHang;
 
-    // CHỐT: int code (1..7)
+    // int code
     @Column(name = "trang_thai_hien_tai", nullable = false)
     private Integer trangThaiHienTai;
 
