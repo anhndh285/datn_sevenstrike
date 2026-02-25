@@ -2,7 +2,9 @@ package com.example.datn_sevenstrike.controller;
 
 import com.example.datn_sevenstrike.dto.request.KhachHangRequest;
 import com.example.datn_sevenstrike.dto.response.KhachHangResponse;
+import com.example.datn_sevenstrike.dto.response.KhachHangTongQuanResponse;
 import com.example.datn_sevenstrike.service.KhachHangService;
+import com.example.datn_sevenstrike.service.KhachHangThongKeService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class KhachHangController {
 
     private final KhachHangService service;
+    private final KhachHangThongKeService thongKeService;
 
     // ✅ Alias cho FE đang gọi /all
     @GetMapping("/all")
@@ -58,5 +61,33 @@ public class KhachHangController {
     public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
-}
 
+    // ========================= THỐNG KÊ KHÁCH HÀNG (3 CỘT) =========================
+
+    @GetMapping("/{id:\\d+}/tong-quan")
+    public KhachHangTongQuanResponse tongQuan(@PathVariable("id") Integer id) {
+        service.one(id); // ✅ đảm bảo KH tồn tại
+        return thongKeService.tongQuan(id);
+    }
+
+    // ✅ Alias theo log FE
+    @GetMapping("/{id:\\d+}/thong-ke")
+    public KhachHangTongQuanResponse thongKeAlias1(@PathVariable("id") Integer id) {
+        service.one(id);
+        return thongKeService.tongQuan(id);
+    }
+
+    // ✅ Alias theo log FE: /khach-hang/thong-ke/{id}
+    @GetMapping("/thong-ke/{id:\\d+}")
+    public KhachHangTongQuanResponse thongKeAlias2(@PathVariable("id") Integer id) {
+        service.one(id);
+        return thongKeService.tongQuan(id);
+    }
+
+    // ✅ Alias theo log FE: /khach-hang/tong-quan/{id}
+    @GetMapping("/tong-quan/{id:\\d+}")
+    public KhachHangTongQuanResponse tongQuanAlias(@PathVariable("id") Integer id) {
+        service.one(id);
+        return thongKeService.tongQuan(id);
+    }
+}

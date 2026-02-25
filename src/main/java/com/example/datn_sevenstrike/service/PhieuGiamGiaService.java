@@ -89,6 +89,9 @@ public class PhieuGiamGiaService {
         PhieuGiamGia db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
 
+        // ✅ fingerprint trước khi update (để biết có đổi nội dung mail không)
+        String beforeFp = buildMailFingerprint(db);
+
         boolean dbIsCaNhan = hasAnyAliveCaNhan(id);
 
         if (req.getTenPhieuGiamGia() != null) db.setTenPhieuGiamGia(req.getTenPhieuGiamGia());
@@ -149,6 +152,14 @@ public class PhieuGiamGiaService {
         if (!finalIsCaNhan) {
             caNhanRepo.softDeleteAliveByVoucherId(saved.getId());
             chiTietRepo.deleteByPhieuGiamGia(saved);
+        }
+
+        // ✅ nếu nội dung voucher thay đổi => reset trạng thái đã gửi để mail update được gửi lại
+        String afterFp = buildMailFingerprint(saved);
+        boolean noiDungMailThayDoi = !Objects.equals(beforeFp, afterFp);
+
+        if (finalIsCaNhan && noiDungMailThayDoi) {
+            caNhanRepo.resetDaGuiMailAliveByVoucherId(saved.getId());
         }
 
         return toResponse(saved);
@@ -228,11 +239,9 @@ public class PhieuGiamGiaService {
             }
 
             try {
-                // ✅ gửi theo template + inline logo
                 voucherEmailService.sendVoucherEmail(email, phieu);
                 guiThanhCong++;
             } catch (Exception ex) {
-                // ✅ gửi lỗi thì rollback để lần sau còn gửi lại được
                 caNhanRepo.rollbackDaGuiMailNeuGuiLoi(voucherId, idKh, thoiGianGui);
                 boQua++;
             }
@@ -399,5 +408,31 @@ public class PhieuGiamGiaService {
 
     private PhieuGiamGiaResponse toResponse(PhieuGiamGia e) {
         return mapper.map(e, PhieuGiamGiaResponse.class);
+    }
+
+    // ✅ Fingerprint cho nội dung mail (đổi => gửi lại)
+    private String buildMailFingerprint(PhieuGiamGia p) {
+        return String.join("|",
+                safeStr(p != null ? p.getTenPhieuGiamGia() : null),
+                safeStr(p != null ? p.getMoTa() : null),
+                String.valueOf(p != null && Boolean.TRUE.equals(p.getLoaiPhieuGiamGia())),
+                safeBd(p != null ? p.getGiaTriGiamGia() : null),
+                safeBd(p != null ? p.getSoTienGiamToiDa() : null),
+                safeBd(p != null ? p.getHoaDonToiThieu() : null),
+                safeDate(p != null ? p.getNgayBatDau() : null),
+                safeDate(p != null ? p.getNgayKetThuc() : null)
+        );
+    }
+
+    private String safeStr(String s) {
+        return (s == null) ? "" : s.trim();
+    }
+
+    private String safeBd(BigDecimal n) {
+        return (n == null) ? "0" : n.stripTrailingZeros().toPlainString();
+    }
+
+    private String safeDate(LocalDate d) {
+        return (d == null) ? "" : d.toString();
     }
 }

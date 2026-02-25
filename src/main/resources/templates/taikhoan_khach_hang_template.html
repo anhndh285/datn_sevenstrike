@@ -3,44 +3,55 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mã Giảm Giá Đặc Biệt Từ SevenStrike</title>
+    <title>Chào mừng khách hàng mới - SevenStrike</title>
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f0f0f0; }
         .wrapper { width: 100%; background-color: #f0f0f0; padding: 20px 0; }
         .main-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; }
         .header { background: linear-gradient(135deg, #930707 0%, #ce1d1d 100%); padding: 30px; text-align: center; color: #ffffff; }
         .logo { width: 100px; height: auto; margin-bottom: 15px; }
-        .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        .header h1 { margin: 0; font-size: 22px; text-transform: uppercase; letter-spacing: 1.5px; }
         .content { padding: 30px; color: #333333; line-height: 1.6; }
-        .voucher-card {
+        .card-box {
             background-color: #fffafb;
             border: 2px dashed #ce1d1d;
             border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
+            padding: 18px 20px;
+            margin: 18px 0 8px 0;
         }
-        .voucher-row {
+        .row {
             border-bottom: 1px solid #f0f0f0;
             padding: 10px 0;
             clear: both;
         }
+        .row.last { border-bottom: none; }
         .label { color: #666666; float: left; }
         .value { color: #1a1a1a; font-weight: bold; float: right; }
-        .promo-code {
-            font-size: 24px;
+        .big-value {
+            font-size: 18px;
             color: #ce1d1d;
             text-align: center;
             display: block;
-            letter-spacing: 3px;
-            margin: 15px 0;
+            letter-spacing: 1px;
+            margin: 12px 0;
             font-weight: bold;
             font-family: "Courier New", monospace;
         }
-        .btn-container { text-align: center; margin-top: 30px; }
+        .note {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background: #f9fafb;
+            border: 1px solid rgba(17,24,39,0.10);
+            border-radius: 10px;
+            color: rgba(17,24,39,0.75);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .btn-container { text-align: center; margin-top: 22px; }
         .btn {
             background: linear-gradient(90deg, #ce1d1d 0%, #930707 100%);
             color: #ffffff !important;
-            padding: 15px 30px;
+            padding: 14px 28px;
             text-decoration: none;
             border-radius: 50px;
             font-weight: bold;
@@ -48,7 +59,7 @@
         }
         .footer {
             background: linear-gradient(135deg, #1a1a1a 0%, #434343 100%);
-            padding: 20px;
+            padding: 18px 20px;
             text-align: center;
             color: #ffffff;
             font-size: 12px;
@@ -61,41 +72,39 @@
     <div class="main-container">
         <div class="header">
             <img src="cid:logo" alt="SevenStrike Logo" class="logo" />
-            <h1>Mã Giảm Giá Đặc Biệt</h1>
+            <h1>TÀI KHOẢN KHÁCH HÀNG MỚI</h1>
         </div>
 
         <div class="content">
-            <p><strong>Chào bạn,</strong></p>
-            <p>Cảm ơn bạn đã tin tưởng và đồng hành cùng <strong>SevenStrike</strong>. Chúng tôi dành tặng bạn một ưu đãi đặc biệt!</p>
+            <p><strong>Xin chào, {{TEN}}!</strong></p>
+            <p>
+                Cảm ơn bạn đã đăng ký tài khoản tại <strong>SevenStrike</strong>.
+                Dưới đây là thông tin đăng nhập để bạn có thể mua sắm và theo dõi đơn hàng:
+            </p>
 
-            <div class="voucher-card">
-                <div class="voucher-row">
-                    <span class="label">Mã của bạn:</span>
-                    <span class="value">{{MA_GIAM_GIA}}</span>
+            <div class="card-box">
+                <div class="row">
+                    <span class="label">Tên tài khoản:</span>
+                    <span class="value">{{TEN_TAI_KHOAN}}</span>
                 </div>
 
-                <div class="promo-code">{{MA_GIAM_GIA}}</div>
+                <span class="big-value">{{TEN_TAI_KHOAN}}</span>
 
-                <div class="voucher-row">
-                    <span class="label">Mức giảm:</span>
-                    <span class="value" style="color: #ce1d1d;">{{GIA_TRI_GIAM_HIEN_THI}}</span>
+                <div class="row last">
+                    <span class="label">Mật khẩu tạm thời:</span>
+                    <span class="value">{{MAT_KHAU}}</span>
                 </div>
-
-                <div class="voucher-row">
-                    <span class="label">Đơn tối thiểu:</span>
-                    <span class="value">{{HOA_DON_TOI_THIEU}} VNĐ</span>
-                </div>
-
-                <div class="voucher-row" style="border-bottom: none;">
-                    <span class="label">Hạn sử dụng:</span>
-                    <span class="value">{{NGAY_KET_THUC}}</span>
-                </div>
-
                 <div style="clear: both;"></div>
             </div>
 
+            <div class="note">
+                <strong>Lưu ý:</strong>
+                Để đảm bảo an toàn, bạn nên đổi mật khẩu sau khi đăng nhập lần đầu.
+                Nếu bạn không thực hiện đăng ký tài khoản, vui lòng bỏ qua email này hoặc liên hệ SevenStrike để được hỗ trợ.
+            </div>
+
             <div class="btn-container">
-                <a href="{{LINK_SU_DUNG}}" class="btn">SỬ DỤNG NGAY BÂY GIỜ</a>
+                <a href="{{LINK_DANG_NHAP}}" class="btn">ĐĂNG NHẬP NGAY</a>
             </div>
         </div>
 

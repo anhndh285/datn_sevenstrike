@@ -1,12 +1,13 @@
+// File: src/main/java/com/example/datn_sevenstrike/controller/ChiTietSanPhamController.java
 package com.example.datn_sevenstrike.controller;
 
 import com.example.datn_sevenstrike.dto.request.ChiTietSanPhamRequest;
+import com.example.datn_sevenstrike.dto.response.ChiTietSanPhamBanHangResponse;
 import com.example.datn_sevenstrike.dto.response.ChiTietSanPhamResponse;
 import com.example.datn_sevenstrike.service.ChiTietSanPhamService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/chi-tiet-san-pham")
@@ -45,5 +46,9 @@ public class ChiTietSanPhamController {
         return service.bySanPham(idSanPham);
     }
 
+    // Thêm để FE ở màn POS (admin route) gọi được
+    @GetMapping("/ban-hang")
+    public List<ChiTietSanPhamBanHangResponse> banHang() {
+        return service.banHang();
+    }
 }
-

@@ -3,80 +3,76 @@ package com.example.datn_sevenstrike.service;
 import com.example.datn_sevenstrike.dto.request.CaLamRequest;
 import com.example.datn_sevenstrike.dto.response.CaLamResponse;
 import com.example.datn_sevenstrike.entity.CaLam;
-import com.example.datn_sevenstrike.exception.NgoaiLeDuLieuKhongHopLe;
-import com.example.datn_sevenstrike.exception.NgoaiLeKhongTimThay;
+import com.example.datn_sevenstrike.exception.BadRequestEx;
+import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.CaLamRepository;
-import java.util.List;
-import java.util.stream.Collectors;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class CaLamService {
 
     private final CaLamRepository repo;
+    private final ModelMapper mapper;
 
     public List<CaLamResponse> all() {
-        return repo.findByXoaMemFalseOrderByIdDesc()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        return repo.findAllByXoaMemFalseOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
     }
 
     public CaLamResponse one(Integer id) {
-        CaLam e = repo.findById(id).orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy ca làm."));
-        if (Boolean.TRUE.equals(e.getXoaMem())) throw new NgoaiLeKhongTimThay("Không tìm thấy ca làm.");
+        CaLam e = repo.findByIdAndXoaMemFalse(id)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy CaLam id=" + id));
         return toResponse(e);
     }
 
+    @Transactional
     public CaLamResponse create(CaLamRequest req) {
-        if (req.getGioKetThuc().compareTo(req.getGioBatDau()) <= 0) {
-            throw new NgoaiLeDuLieuKhongHopLe("Giờ kết thúc phải lớn hơn giờ bắt đầu.");
-        }
-        CaLam e = new CaLam();
-        e.setTenCa(req.getTenCa().trim());
-        e.setGioBatDau(req.getGioBatDau());
-        e.setGioKetThuc(req.getGioKetThuc());
-        e.setMoTa(req.getMoTa());
-        e.setTrangThai(req.getTrangThai() == null ? true : req.getTrangThai());
-        e.setXoaMem(false);
+        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        CaLam e = mapper.map(req, CaLam.class);
+        e.setId(null);
+        applyDefaults(e, true);
+        validate(e);
         return toResponse(repo.save(e));
     }
 
+    @Transactional
     public CaLamResponse update(Integer id, CaLamRequest req) {
-        CaLam e = repo.findById(id).orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy ca làm."));
-        if (Boolean.TRUE.equals(e.getXoaMem())) throw new NgoaiLeKhongTimThay("Không tìm thấy ca làm.");
+        CaLam db = repo.findByIdAndXoaMemFalse(id)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy CaLam id=" + id));
 
-        if (req.getGioKetThuc().compareTo(req.getGioBatDau()) <= 0) {
-            throw new NgoaiLeDuLieuKhongHopLe("Giờ kết thúc phải lớn hơn giờ bắt đầu.");
-        }
+        mapper.map(req, db); // Map đè dữ liệu mới
+        applyDefaults(db, false);
+        validate(db);
 
-        e.setTenCa(req.getTenCa().trim());
-        e.setGioBatDau(req.getGioBatDau());
-        e.setGioKetThuc(req.getGioKetThuc());
-        e.setMoTa(req.getMoTa());
-        if (req.getTrangThai() != null) e.setTrangThai(req.getTrangThai());
-
-        return toResponse(repo.save(e));
+        return toResponse(repo.save(db));
     }
 
+    @Transactional
     public void delete(Integer id) {
-        CaLam e = repo.findById(id).orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy ca làm."));
-        e.setXoaMem(true);
-        repo.save(e);
+        CaLam db = repo.findByIdAndXoaMemFalse(id)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy CaLam id=" + id));
+        db.setXoaMem(true);
+        repo.save(db);
+    }
+
+    private void applyDefaults(CaLam e, boolean createMode) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+    }
+
+    private void validate(CaLam e) {
+        if (e.getTenCa() == null || e.getTenCa().isBlank()) throw new BadRequestEx("Tên ca không được để trống");
+        if (e.getGioBatDau() == null || e.getGioKetThuc() == null) throw new BadRequestEx("Thiếu giờ bắt đầu/kết thúc");
+        if (e.getGioBatDau().isAfter(e.getGioKetThuc())) throw new BadRequestEx("Giờ bắt đầu phải trước giờ kết thúc");
     }
 
     private CaLamResponse toResponse(CaLam e) {
-        return CaLamResponse.builder()
-                .id(e.getId())
-                .maCa(e.getMaCa())
-                .tenCa(e.getTenCa())
-                .gioBatDau(e.getGioBatDau())
-                .gioKetThuc(e.getGioKetThuc())
-                .moTa(e.getMoTa())
-                .trangThai(e.getTrangThai())
-                .build();
+        return mapper.map(e, CaLamResponse.class);
     }
 }
-

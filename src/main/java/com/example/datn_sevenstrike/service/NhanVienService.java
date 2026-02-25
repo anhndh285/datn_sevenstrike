@@ -23,6 +23,8 @@ public class NhanVienService {
     private final ModelMapper mapper;
     private final FileStorageService fileStorageService;
 
+    private final TaiKhoanEmailService emailService;
+
     public List<NhanVienResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
                 .stream().map(this::toResponse).toList();
@@ -66,7 +68,15 @@ public class NhanVienService {
         validate(e);
         validateDuplicateCreate(e);
 
-        return toResponse(repo.save(e));
+        String rawPassword = req.getMatKhau();
+
+        NhanVien saved = repo.save(e);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendNhanVienEmail(saved.getEmail(), saved, rawPassword);
+        }
+
+        return toResponse(saved);
     }
 
     // ========= UPDATE =========

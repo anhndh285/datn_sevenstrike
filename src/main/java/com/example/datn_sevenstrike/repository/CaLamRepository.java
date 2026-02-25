@@ -1,12 +1,17 @@
 package com.example.datn_sevenstrike.repository;
 
 import com.example.datn_sevenstrike.entity.CaLam;
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
-@Repository
+import java.util.List;
+import java.util.Optional;
+
 public interface CaLamRepository extends JpaRepository<CaLam, Integer> {
-    List<CaLam> findByXoaMemFalseOrderByIdDesc();
-}
+    List<CaLam> findAllByXoaMemFalseOrderByIdDesc();
 
+    Optional<CaLam> findByIdAndXoaMemFalse(Integer id);
+
+    Page<CaLam> findAllByXoaMemFalse(Pageable pageable);
+}

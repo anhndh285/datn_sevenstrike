@@ -41,4 +41,20 @@ public class ChiTietDotGiamGiaController {
     public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
+
+    // =========================
+    // API phục vụ BÁN HÀNG (POS)
+    // - Lấy đợt giảm giá "tốt nhất" đang active cho CTSP
+    // - FE dùng giaTriGiamApDung để hiển thị badge
+    // =========================
+
+    @GetMapping("/ban-hang/ctsp/{idChiTietSanPham}")
+    public ChiTietDotGiamGiaResponse bestForCtspBanHang(@PathVariable("idChiTietSanPham") Integer idChiTietSanPham) {
+        return service.bestForCtspBanHang(idChiTietSanPham);
+    }
+
+    @PostMapping("/ban-hang/best-by-ctsp-ids")
+    public List<ChiTietDotGiamGiaResponse> bestForCtspIdsBanHang(@RequestBody List<Integer> idChiTietSanPhams) {
+        return service.bestForCtspIdsBanHang(idChiTietSanPhams);
+    }
 }

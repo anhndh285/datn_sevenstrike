@@ -4,17 +4,17 @@ import com.example.datn_sevenstrike.dto.request.CaLamRequest;
 import com.example.datn_sevenstrike.dto.response.CaLamResponse;
 import com.example.datn_sevenstrike.service.CaLamService;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/ca-lam")
 @RequiredArgsConstructor
 @Validated
 public class CaLamController {
-
     private final CaLamService service;
 
     @GetMapping
@@ -22,8 +22,9 @@ public class CaLamController {
         return service.all();
     }
 
-    @GetMapping("/{id}")
-    public CaLamResponse one(@PathVariable Integer id) {
+    // ✅ FIX: chỉ match id là số để tránh /page bị hiểu là id
+    @GetMapping("/{id:\\d+}")
+    public CaLamResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
     }
 
@@ -32,13 +33,13 @@ public class CaLamController {
         return service.create(req);
     }
 
-    @PutMapping("/{id}")
-    public CaLamResponse update(@PathVariable Integer id, @Valid @RequestBody CaLamRequest req) {
+    @PutMapping("/{id:\\d+}")
+    public CaLamResponse update(@PathVariable("id") Integer id, @Valid @RequestBody CaLamRequest req) {
         return service.update(id, req);
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable Integer id) {
+    @DeleteMapping("/{id:\\d+}")
+    public void delete(@PathVariable("id") Integer id) {
         service.delete(id);
     }
 }

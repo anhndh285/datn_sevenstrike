@@ -1,160 +1,160 @@
 package com.example.datn_sevenstrike.service;
 
-import com.example.datn_sevenstrike.constants.TrangThaiGiaoCa;
-import com.example.datn_sevenstrike.dto.request.DongCaRequest;
-import com.example.datn_sevenstrike.dto.request.GiaoCaVaoCaRequest;
-import com.example.datn_sevenstrike.dto.request.XacNhanTienDauCaRequest;
+import com.example.datn_sevenstrike.dto.request.GiaoCaRequest;
 import com.example.datn_sevenstrike.dto.response.GiaoCaResponse;
 import com.example.datn_sevenstrike.entity.GiaoCa;
 import com.example.datn_sevenstrike.entity.LichLamViec;
-import com.example.datn_sevenstrike.exception.NgoaiLeDuLieuKhongHopLe;
-import com.example.datn_sevenstrike.exception.NgoaiLeKhongTimThay;
+import com.example.datn_sevenstrike.entity.LichLamViecNhanVien;
+import com.example.datn_sevenstrike.entity.NhanVien;
+import com.example.datn_sevenstrike.exception.BadRequestEx;
+import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.GiaoCaRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecNhanVienRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecRepository;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import com.example.datn_sevenstrike.repository.NhanVienRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class GiaoCaService {
 
     private final GiaoCaRepository giaoCaRepo;
-    private final LichLamViecRepository lichRepo;
-    private final LichLamViecNhanVienRepository llvnvRepo;
+    private final LichLamViecRepository lichLamViecRepo;
+    private final LichLamViecNhanVienRepository lichLamViecNhanVienRepo;
+    private final NhanVienRepository nhanVienRepo;
 
-    public GiaoCaResponse dangHoatDong(Integer idNhanVien) {
-        return giaoCaRepo
-                .findFirstByIdNhanVienAndXoaMemFalseAndTrangThaiAndThoiGianKetCaIsNullOrderByIdDesc(
-                        idNhanVien, TrangThaiGiaoCa.DANG_HOAT_DONG.code
-                )
-                .map(this::toResponse)
-                .orElse(null);
+    public GiaoCaResponse getCaLamViecHienTai(Integer idNhanVien) {
+        GiaoCa gc = giaoCaRepo.findCaDangHoatDong(idNhanVien)
+                .orElseThrow(() -> new NotFoundEx("Nhân viên hiện không trong ca làm việc nào."));
+        return mapToResponse(gc);
     }
 
     @Transactional
-    public GiaoCaResponse vaoCa(GiaoCaVaoCaRequest req) {
-        LichLamViec llv = lichRepo.findByIdAndXoaMemFalse(req.getIdLichLamViec())
-                .orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy lịch làm việc."));
+    public GiaoCaResponse xacNhanTienDauCa(Integer idGiaoCa, BigDecimal tienNhap) {
+        GiaoCa gc = giaoCaRepo.findById(idGiaoCa)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ca"));
 
-        // case khó: chỉ cho vào ca của ngày hôm nay (đỡ nhầm)
-        if (!LocalDate.now().equals(llv.getNgayLam())) {
-            throw new NgoaiLeDuLieuKhongHopLe("Chỉ được vào ca của ngày hôm nay.");
+        // NEW: Đảm bảo constraint CK_gc_tien (tiền phải >= 0)
+        if (tienNhap == null || tienNhap.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BadRequestEx("Tiền nhập đầu ca phải lớn hơn hoặc bằng 0!");
         }
 
-        // check NV có nằm trong lịch (DB trigger cũng chặn, nhưng BE trả message đẹp)
-        boolean coTrongCa = llvnvRepo.existsByIdLichLamViecAndIdNhanVienAndXoaMemFalse(
-                req.getIdLichLamViec(), req.getIdNhanVien()
-        );
-        if (!coTrongCa) {
-            throw new NgoaiLeDuLieuKhongHopLe("Nhân viên không nằm trong ca làm nên không thể vào ca.");
-        }
-
-        // mỗi NV chỉ có 1 ca đang mở
-        if (giaoCaRepo.existsByIdNhanVienAndXoaMemFalseAndTrangThaiAndThoiGianKetCaIsNull(
-                req.getIdNhanVien(), TrangThaiGiaoCa.DANG_HOAT_DONG.code
-        )) {
-            throw new NgoaiLeDuLieuKhongHopLe("Nhân viên đang có ca hoạt động, không thể vào ca mới.");
-        }
-
-        BigDecimal tienDuKien = req.getTienBanGiaoDuKien() == null ? BigDecimal.ZERO : req.getTienBanGiaoDuKien();
-        if (tienDuKien.compareTo(BigDecimal.ZERO) < 0) {
-            throw new NgoaiLeDuLieuKhongHopLe("Tiền bàn giao dự kiến không hợp lệ.");
-        }
-
-        // lấy giao ca trước (nếu có) theo cùng lịch làm việc, trạng thái đã đóng
-        Integer idGiaoCaTruoc = giaoCaRepo.findFirstByIdLichLamViecAndXoaMemFalseAndTrangThaiOrderByIdDesc(
-                req.getIdLichLamViec(), TrangThaiGiaoCa.DA_DONG_CA.code
-        )
-                .map(GiaoCa::getId)
-                .orElse(null);
-
-        GiaoCa gc = new GiaoCa();
-        gc.setIdLichLamViec(req.getIdLichLamViec());
-        gc.setIdNhanVien(req.getIdNhanVien());
-        gc.setIdGiaoCaTruoc(idGiaoCaTruoc);
-        gc.setThoiGianNhanCa(LocalDateTime.now());
-        gc.setThoiGianKetCa(null);
-        gc.setTienBanGiaoDuKien(tienDuKien);
-        gc.setTienDauCaNhap(null);
-        gc.setDaXacNhanTienDauCa(false);
-        gc.setTrangThai(TrangThaiGiaoCa.DANG_HOAT_DONG.code);
-        gc.setXoaMem(false);
-
-        return toResponse(giaoCaRepo.save(gc));
-    }
-
-    @Transactional
-    public GiaoCaResponse xacNhanTienDauCa(XacNhanTienDauCaRequest req) {
-        GiaoCa gc = giaoCaRepo.findByIdAndXoaMemFalse(req.getIdGiaoCa())
-                .orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy giao ca."));
-
-        // ✅ dùng codeEquals để check trạng thái
-        if (!TrangThaiGiaoCa.DANG_HOAT_DONG.codeEquals(gc.getTrangThai()) || gc.getThoiGianKetCa() != null) {
-            throw new NgoaiLeDuLieuKhongHopLe("Ca này không còn hoạt động.");
-        }
-
-        // optional: check đúng nhân viên
-        if (req.getIdNhanVien() != null && !req.getIdNhanVien().equals(gc.getIdNhanVien())) {
-            throw new NgoaiLeDuLieuKhongHopLe("Bạn không có quyền xác nhận tiền đầu ca của ca này.");
-        }
-
-        BigDecimal tienNhap = req.getTienDauCaNhap();
-        if (tienNhap.compareTo(BigDecimal.ZERO) < 0) {
-            throw new NgoaiLeDuLieuKhongHopLe("Tiền đầu ca nhập không hợp lệ.");
-        }
-
-        if (tienNhap.compareTo(gc.getTienBanGiaoDuKien()) != 0) {
-            throw new NgoaiLeDuLieuKhongHopLe("Tiền đầu ca không khớp số tiền bàn giao dự kiến.");
+        // NEW: Đảm bảo constraint CK_gc_xac_nhan_tien
+        if (gc.getTienBanGiaoDuKien().compareTo(tienNhap) != 0) {
+            throw new BadRequestEx("Tiền đầu ca không khớp với số tiền hệ thống dự kiến (" + gc.getTienBanGiaoDuKien() + ")!");
         }
 
         gc.setTienDauCaNhap(tienNhap);
         gc.setDaXacNhanTienDauCa(true);
-        gc.setNgayCapNhat(LocalDateTime.now());
 
-        return toResponse(giaoCaRepo.save(gc));
+        return mapToResponse(giaoCaRepo.save(gc));
     }
 
     @Transactional
-    public GiaoCaResponse dongCa(DongCaRequest req) {
-        GiaoCa gc = giaoCaRepo.findByIdAndXoaMemFalse(req.getIdGiaoCa())
-                .orElseThrow(() -> new NgoaiLeKhongTimThay("Không tìm thấy giao ca."));
+    public GiaoCaResponse batDauCa(GiaoCaRequest req) {
+        NhanVien nv = nhanVienRepo.findById(req.getIdNhanVien())
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy nhân viên"));
 
-        if (!TrangThaiGiaoCa.DANG_HOAT_DONG.codeEquals(gc.getTrangThai()) || gc.getThoiGianKetCa() != null) {
-            throw new NgoaiLeDuLieuKhongHopLe("Ca này không còn hoạt động.");
+        if (giaoCaRepo.findCaDangHoatDong(req.getIdNhanVien()).isPresent()) {
+            throw new BadRequestEx("Nhân viên đang trong ca làm khác!");
         }
 
-        // case khó: muốn làm chặt thì yêu cầu xác nhận tiền đầu ca trước khi đóng ca
-        if (!Boolean.TRUE.equals(gc.getDaXacNhanTienDauCa())) {
-            throw new NgoaiLeDuLieuKhongHopLe("Bạn chưa xác nhận tiền đầu ca nên không thể đóng ca.");
+        LichLamViec lich = lichLamViecRepo.findByIdAndXoaMemFalse(req.getIdLichLamViec())
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy lịch làm việc!"));
+
+        // NEW: Kiểm tra xem nhân viên này có thực sự được phân công vào lịch làm việc không
+        boolean isAssigned = lichLamViecNhanVienRepo.existsByLichLamViecAndNhanVien(lich.getId(), nv.getId());
+        if (!isAssigned) {
+            throw new BadRequestEx("Nhân viên không có trong danh sách phân công của lịch làm việc này!");
         }
 
-        gc.setTrangThai(TrangThaiGiaoCa.DA_DONG_CA.code);
-        gc.setThoiGianKetCa(LocalDateTime.now());
-        gc.setGhiChu(req.getGhiChu());
-        gc.setNgayCapNhat(LocalDateTime.now());
+        Optional<GiaoCa> catruocOpt = giaoCaRepo.findCaLamViecLienKeTruocDo();
+        BigDecimal tienDuKien = BigDecimal.ZERO;
+        GiaoCa caTruoc = null;
 
-        return toResponse(giaoCaRepo.save(gc));
+        if (catruocOpt.isPresent()) {
+            caTruoc = catruocOpt.get();
+            // NEW: Logic tiền bàn giao chuẩn = Tiền vốn đầu ca trước + Tổng doanh thu thu được trong ca trước
+            BigDecimal tienVonCaTruoc = caTruoc.getTienDauCaNhap() != null ? caTruoc.getTienDauCaNhap() : BigDecimal.ZERO;
+            BigDecimal doanhThuCaTruoc = giaoCaRepo.tinhDoanhThuCa(caTruoc.getId());
+            tienDuKien = tienVonCaTruoc.add(doanhThuCaTruoc);
+        }
+
+        GiaoCa giaoCa = new GiaoCa();
+        giaoCa.setNhanVien(nv);
+        giaoCa.setLichLamViec(lich);
+        giaoCa.setGiaoCaTruoc(caTruoc);
+        giaoCa.setThoiGianNhanCa(LocalDateTime.now());
+        giaoCa.setTienBanGiaoDuKien(tienDuKien);
+
+        giaoCa.setTienDauCaNhap(req.getTienDauCaNhap());
+
+        if (req.getTienDauCaNhap() != null && req.getTienDauCaNhap().compareTo(tienDuKien) == 0) {
+            giaoCa.setDaXacNhanTienDauCa(true);
+        } else {
+            giaoCa.setDaXacNhanTienDauCa(false);
+        }
+
+        giaoCa.setTrangThai(0);
+        giaoCa.setXoaMem(false);
+
+        return mapToResponse(giaoCaRepo.save(giaoCa));
     }
 
-    private GiaoCaResponse toResponse(GiaoCa e) {
-        return GiaoCaResponse.builder()
-                .id(e.getId())
-                .maGiaoCa(e.getMaGiaoCa())
-                .idLichLamViec(e.getIdLichLamViec())
-                .idNhanVien(e.getIdNhanVien())
-                .idGiaoCaTruoc(e.getIdGiaoCaTruoc())
-                .thoiGianNhanCa(e.getThoiGianNhanCa())
-                .thoiGianKetCa(e.getThoiGianKetCa())
-                .tienBanGiaoDuKien(e.getTienBanGiaoDuKien())
-                .tienDauCaNhap(e.getTienDauCaNhap())
-                .daXacNhanTienDauCa(e.getDaXacNhanTienDauCa())
-                .trangThai(e.getTrangThai())
-                .ghiChu(e.getGhiChu())
+    @Transactional
+    public GiaoCaResponse ketThucCa(Integer idGiaoCa, GiaoCaRequest req) {
+        GiaoCa gc = giaoCaRepo.findById(idGiaoCa)
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ca"));
+
+        if (gc.getTrangThai() == 1) {
+            throw new BadRequestEx("Ca này đã được đóng trước đó.");
+        }
+
+        if (!Boolean.TRUE.equals(gc.getDaXacNhanTienDauCa())) {
+            throw new BadRequestEx("Bạn chưa xác nhận tiền đầu ca, không thể kết thúc ca!");
+        }
+
+        // Đóng ca (Đảm bảo constraint CK_gc_dong_ca)
+        gc.setThoiGianKetCa(LocalDateTime.now());
+        gc.setTrangThai(1);
+        gc.setGhiChu(req.getGhiChu());
+
+        return mapToResponse(giaoCaRepo.save(gc));
+    }
+
+    // Helper: Map Entity to Response
+    private GiaoCaResponse mapToResponse(GiaoCa entity) {
+        GiaoCaResponse res = GiaoCaResponse.builder()
+                .id(entity.getId())
+                .maGiaoCa(entity.getMaGiaoCa())
+                .tienBanGiaoDuKien(entity.getTienBanGiaoDuKien())
+                .tienDauCaNhap(entity.getTienDauCaNhap())
+                .daXacNhanTienDauCa(entity.getDaXacNhanTienDauCa())
+                .thoiGianNhanCa(entity.getThoiGianNhanCa())
+                .thoiGianKetCa(entity.getThoiGianKetCa())
+                .trangThai(entity.getTrangThai())
+                .ghiChu(entity.getGhiChu())
+                .ngayTao(entity.getNgayTao())
+                .ngayCapNhat(entity.getNgayCapNhat())
+                .nguoiTao(entity.getNguoiTao())
+                .nguoiCapNhat(entity.getNguoiCapNhat())
                 .build();
+
+        if (entity.getLichLamViec().getIdCaLam() != null) {
+            var ca = entity.getLichLamViec().getIdCaLam();
+            res.setTenCaLam(ca.getTenCa());
+            res.setGioBatDauCa(ca.getGioBatDau());
+            res.setGioKetThucCa(ca.getGioKetThuc());
+        }
+
+        return res;
     }
 }

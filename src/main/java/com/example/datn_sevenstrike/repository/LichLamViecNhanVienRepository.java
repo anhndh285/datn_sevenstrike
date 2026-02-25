@@ -1,33 +1,37 @@
 package com.example.datn_sevenstrike.repository;
 
 import com.example.datn_sevenstrike.entity.LichLamViecNhanVien;
-import java.util.List;
-import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
 public interface LichLamViecNhanVienRepository extends JpaRepository<LichLamViecNhanVien, Integer> {
 
-    boolean existsByIdLichLamViecAndIdNhanVienAndXoaMemFalse(Integer idLichLamViec, Integer idNhanVien);
+    @Query("SELECT l FROM LichLamViecNhanVien l WHERE l.lichLamViec.id = :idLich AND l.nhanVien.id = :idNv AND l.xoaMem = false")
+    Optional<LichLamViecNhanVien> findByLichAndNhanVien(Integer idLich, Integer idNv);
 
-    List<LichLamViecNhanVien> findByIdLichLamViecAndXoaMemFalse(Integer idLichLamViec);
+    List<LichLamViecNhanVien> findAllByXoaMemFalseOrderByIdDesc();
 
-    Optional<LichLamViecNhanVien> findByIdLichLamViecAndIdNhanVien(Integer idLichLamViec, Integer idNhanVien);
+    Page<LichLamViecNhanVien> findAllByXoaMemFalse(Pageable pageable);
 
-    interface NhanVienTrongCaProjection {
-        Integer getIdNhanVien();
-        String getTenTaiKhoan();
-    }
+    Optional<LichLamViecNhanVien> findByIdAndXoaMemFalse(Integer id);
 
-    @Query(value = """
-            select nv.id as idNhanVien, nv.ten_tai_khoan as tenTaiKhoan
-            from lich_lam_viec_nhan_vien llvnv
-            join nhan_vien nv on nv.id = llvnv.id_nhan_vien and nv.xoa_mem = 0
-            where llvnv.xoa_mem = 0
-              and llvnv.id_lich_lam_viec = :idLichLamViec
-            order by nv.ten_tai_khoan asc
-            """, nativeQuery = true)
-    List<NhanVienTrongCaProjection> nhanVienTrongCa(@Param("idLichLamViec") Integer idLichLamViec);
+    @Query("SELECT l FROM LichLamViecNhanVien l " +
+            "WHERE l.nhanVien.id = :idNv " +
+            "AND l.lichLamViec.ngayLam = :ngayLam " +
+            "AND l.xoaMem = false " +
+            "ORDER BY l.id DESC")
+    List<LichLamViecNhanVien> findAllByNhanVienAndNgayLam(@Param("idNv") Integer idNhanVien, @Param("ngayLam") LocalDate ngayLam);
+
+    @Query("SELECT COUNT(l) > 0 FROM LichLamViecNhanVien l WHERE l.lichLamViec.id = :idLich AND l.nhanVien.id = :idNv AND l.xoaMem = false")
+    boolean existsByLichLamViecAndNhanVien(@Param("idLich") Integer idLich, @Param("idNv") Integer idNv);
+
 }
-

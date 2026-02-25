@@ -23,6 +23,8 @@ public class KhachHangService {
     private final KhachHangRepository repo;
     private final ModelMapper mapper;
 
+    private final TaiKhoanEmailService emailService;
+
     public List<KhachHangResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
                 .stream().map(this::toResponse).toList();
@@ -52,6 +54,14 @@ public class KhachHangService {
         applyDefaults(e, true);
         validate(e);
         validateDuplicateCreate(e);
+
+        String rawPassword = req.getMatKhau();
+
+        KhachHang saved = repo.save(e);
+
+        if (saved.getEmail() != null && !saved.getEmail().isBlank()) {
+            emailService.sendKhachHangEmail(saved.getEmail(), saved, rawPassword);
+        }
 
         return toResponse(repo.save(e));
     }

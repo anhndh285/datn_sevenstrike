@@ -1,4 +1,3 @@
-// File: src/main/java/com/example/datn_sevenstrike/repository/PhieuGiamGiaCaNhanRepository.java
 package com.example.datn_sevenstrike.repository;
 
 import com.example.datn_sevenstrike.entity.PhieuGiamGiaCaNhan;
@@ -13,11 +12,13 @@ import org.springframework.stereotype.Repository;
 public interface PhieuGiamGiaCaNhanRepository extends JpaRepository<PhieuGiamGiaCaNhan, Integer> {
 
     List<PhieuGiamGiaCaNhan> findAllByXoaMemFalseOrderByIdDesc();
+
     Optional<PhieuGiamGiaCaNhan> findByIdAndXoaMemFalse(Integer id);
 
     boolean existsByIdKhachHangAndIdPhieuGiamGiaAndXoaMemFalse(Integer idKhachHang, Integer idPhieuGiamGia);
 
     List<PhieuGiamGiaCaNhan> findAllByIdKhachHangAndXoaMemFalseOrderByIdDesc(Integer idKhachHang);
+
     List<PhieuGiamGiaCaNhan> findAllByIdKhachHangAndDaSuDungFalseAndXoaMemFalseOrderByIdDesc(Integer idKhachHang);
 
     List<PhieuGiamGiaCaNhan> findAllByIdPhieuGiamGiaAndXoaMemFalseOrderByIdDesc(Integer idPhieuGiamGia);
@@ -115,4 +116,15 @@ public interface PhieuGiamGiaCaNhanRepository extends JpaRepository<PhieuGiamGia
             @Param("khachHangId") Integer khachHangId,
             @Param("thoiGianGui") LocalDateTime thoiGianGui
     );
+
+    // ✅ NEW: voucher thay đổi nội dung => reset trạng thái đã gửi để gửi lại mail update
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update PhieuGiamGiaCaNhan x
+           set x.daGuiMail = false,
+               x.ngayGuiMail = null
+         where x.idPhieuGiamGia = :voucherId
+           and x.xoaMem = false
+    """)
+    int resetDaGuiMailAliveByVoucherId(@Param("voucherId") Integer voucherId);
 }

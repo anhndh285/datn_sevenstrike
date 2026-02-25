@@ -85,14 +85,21 @@ public class VoucherEmailService {
         String template = readTemplate();
 
         String ma = safe(phieu.getMaPhieuGiamGia());
-        String giaTriGiam = buildGiaTriGiam(phieu.getLoaiPhieuGiamGia(), phieu.getGiaTriGiamGia());
+
+        // ✅ SỬA CHỖ NÀY: format đúng % / VNĐ theo loại phiếu
+        String giaTriGiamHienThi = buildGiaTriGiamHienThi(phieu.getLoaiPhieuGiamGia(), phieu.getGiaTriGiamGia());
+
         String hoaDonToiThieu = formatVnd(phieu.getHoaDonToiThieu());
         String ngayKetThuc = formatNgay(phieu.getNgayKetThuc());
         String year = String.valueOf(Year.now().getValue());
 
         return template
                 .replace("{{MA_GIAM_GIA}}", ma)
-                .replace("{{GIA_TRI_GIAM}}", giaTriGiam)
+
+                // ✅ Hỗ trợ cả 2 placeholder để bạn đổi template không bị lỗi
+                .replace("{{GIA_TRI_GIAM_HIEN_THI}}", giaTriGiamHienThi)
+                .replace("{{GIA_TRI_GIAM}}", giaTriGiamHienThi)
+
                 .replace("{{HOA_DON_TOI_THIEU}}", hoaDonToiThieu)
                 .replace("{{NGAY_KET_THUC}}", ngayKetThuc)
                 .replace("{{CURRENT_YEAR}}", year);
@@ -112,11 +119,18 @@ public class VoucherEmailService {
         }
     }
 
-    private String buildGiaTriGiam(Boolean loaiGiamTheoTien, BigDecimal giaTri) {
+    /**
+     * ✅ QUY ƯỚC (để FIX lỗi bạn đang gặp):
+     * - loaiPhieuGiamGia = true  -> GIẢM THEO %
+     * - loaiPhieuGiamGia = false -> GIẢM THEO TIỀN (VNĐ)
+     *
+     * Nếu DB của bạn đang ngược lại, chỉ cần đảo if là xong.
+     */
+    private String buildGiaTriGiamHienThi(Boolean loaiPhieuGiamGia, BigDecimal giaTri) {
         BigDecimal v = (giaTri == null) ? BigDecimal.ZERO : giaTri;
-        boolean giamTheoTien = Boolean.TRUE.equals(loaiGiamTheoTien);
 
-        if (!giamTheoTien) {
+        boolean giamTheoPhanTram = Boolean.TRUE.equals(loaiPhieuGiamGia);
+        if (giamTheoPhanTram) {
             String num = v.stripTrailingZeros().toPlainString();
             return num + "%";
         }

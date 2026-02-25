@@ -1,10 +1,13 @@
 package com.example.datn_sevenstrike.dto.response;
 
+import lombok.*;
+
 import java.time.LocalTime;
-import lombok.Builder;
-import lombok.Getter;
 
 @Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class CaLamResponse {
     private Integer id;
@@ -15,4 +18,3 @@ public class CaLamResponse {
     private String moTa;
     private Boolean trangThai;
 }
-

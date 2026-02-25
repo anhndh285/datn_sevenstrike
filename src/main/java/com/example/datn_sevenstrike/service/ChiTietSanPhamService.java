@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/service/ChiTietSanPhamService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.ChiTietSanPhamRequest;
@@ -7,11 +8,9 @@ import com.example.datn_sevenstrike.entity.ChiTietSanPham;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -45,6 +44,7 @@ public class ChiTietSanPhamService {
     // ============================
     // POS: list CTSP bán hàng
     // ============================
+    @Transactional(readOnly = true)
     public List<ChiTietSanPhamBanHangResponse> banHang() {
         return repo.findBanHang().stream().map(v ->
                 ChiTietSanPhamBanHangResponse.builder()
@@ -129,7 +129,7 @@ public class ChiTietSanPhamService {
 
         LocalDateTime now = LocalDateTime.now();
         if (createMode && e.getNgayTao() == null) e.setNgayTao(now);
-        if (e.getNgayCapNhat() == null) e.setNgayCapNhat(now);
+        e.setNgayCapNhat(now);
     }
 
     private void validateRequired(ChiTietSanPham e) {

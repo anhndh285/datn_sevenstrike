@@ -1,43 +1,57 @@
 package com.example.datn_sevenstrike.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Nationalized;
 
-@Entity
-@Table(name = "lich_lam_viec")
+import java.time.Instant;
+import java.time.LocalDate;
+
 @Getter
 @Setter
+@Entity
+@Table(name = "lich_lam_viec")
 public class LichLamViec {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
     private Integer id;
 
-    @Column(name = "id_ca_lam", nullable = false)
-    private Integer idCaLam;
+    @NotNull
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "id_ca_lam", nullable = false)
+    private CaLam idCaLam;
 
+    @NotNull
     @Column(name = "ngay_lam", nullable = false)
     private LocalDate ngayLam;
 
-    @Column(name = "ghi_chu", length = 255)
+    @Size(max = 255)
+    @Nationalized
+    @Column(name = "ghi_chu")
     private String ghiChu;
 
+    @NotNull
+    @ColumnDefault("0")
     @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem = false;
 
-    @Column(name = "ngay_tao", insertable = false, updatable = false)
-    private LocalDateTime ngayTao;
+    @NotNull
+    @ColumnDefault("sysdatetime()")
+    @Column(name = "ngay_tao", nullable = false)
+    private Instant ngayTao;
 
     @Column(name = "nguoi_tao")
     private Integer nguoiTao;
 
     @Column(name = "ngay_cap_nhat")
-    private LocalDateTime ngayCapNhat;
+    private Instant ngayCapNhat;
 
     @Column(name = "nguoi_cap_nhat")
     private Integer nguoiCapNhat;
-}
 
+}

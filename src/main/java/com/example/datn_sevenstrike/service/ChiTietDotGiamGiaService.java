@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/service/ChiTietDotGiamGiaService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.ChiTietDotGiamGiaRequest;
@@ -7,8 +8,14 @@ import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.ChiTietDotGiamGiaRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -98,6 +105,95 @@ public class ChiTietDotGiamGiaService {
         repo.save(db);
     }
 
+    // =========================
+    // POS: chọn đợt giảm tốt nhất đang active theo CTSP
+    // =========================
+
+    @Transactional(readOnly = true)
+    public ChiTietDotGiamGiaResponse bestForCtspBanHang(Integer idChiTietSanPham) {
+        if (idChiTietSanPham == null || idChiTietSanPham <= 0) return null;
+
+        LocalDate today = LocalDate.now();
+        return repo.findBestActiveDotByCtspId(idChiTietSanPham, today)
+                .map(this::toPosResponse)
+                .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChiTietDotGiamGiaResponse> bestForCtspIdsBanHang(List<Integer> idChiTietSanPhams) {
+        List<Integer> ids = normalizeIds(idChiTietSanPhams);
+        if (ids.isEmpty()) return new ArrayList<>();
+
+        LocalDate today = LocalDate.now();
+        List<ChiTietDotGiamGiaRepository.BestDotGiamGiaView> views = repo.findBestActiveDotsByCtspIds(ids, today);
+        if (views == null || views.isEmpty()) return new ArrayList<>();
+
+        Map<Integer, ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bestByCtsp = new HashMap<>();
+        for (ChiTietDotGiamGiaRepository.BestDotGiamGiaView v : views) {
+            if (v == null || v.getCtspId() == null) continue;
+            bestByCtsp.put(v.getCtspId(), v);
+        }
+
+        List<ChiTietDotGiamGiaResponse> out = new ArrayList<>();
+        for (Integer ctspId : ids) {
+            ChiTietDotGiamGiaRepository.BestDotGiamGiaView v = bestByCtsp.get(ctspId);
+            if (v == null) continue;
+            out.add(toPosResponse(v));
+        }
+        return out;
+    }
+
+    private ChiTietDotGiamGiaResponse toPosResponse(ChiTietDotGiamGiaRepository.BestDotGiamGiaView v) {
+        BigDecimal pct = clampPct(v.getGiaTriGiam());
+        BigDecimal maxTien = v.getSoTienGiamToiDa();
+        if (maxTien != null && maxTien.signum() < 0) maxTien = BigDecimal.ZERO;
+
+        return ChiTietDotGiamGiaResponse.builder()
+                .id(null) // query POS không trả về id chi_tiet_dot_giam_gia
+                .idChiTietSanPham(v.getCtspId())
+                .idDotGiamGia(v.getIdDotGiamGia())
+
+                .maDotGiamGia(v.getMaDotGiamGia())
+                .tenDotGiamGia(v.getTenDotGiamGia())
+
+                .giaTriGiamGiaDot(pct)
+                .mucUuTienDot(v.getMucUuTien())
+                .ngayBatDauDot(null)
+                .ngayKetThucDot(null)
+
+                .giaTriGiamRieng(null)
+                .soTienGiamToiDaRieng(maxTien)
+
+                .giaTriGiamApDung(pct)
+                .soTienGiamToiDaApDung(maxTien)
+
+                .trangThai(true)
+                .xoaMem(false)
+                .build();
+    }
+
+    private List<Integer> normalizeIds(List<Integer> ids) {
+        if (ids == null) return new ArrayList<>();
+        Set<Integer> set = new LinkedHashSet<>();
+        for (Integer x : ids) {
+            if (x == null) continue;
+            if (x <= 0) continue;
+            set.add(x);
+        }
+        return new ArrayList<>(set);
+    }
+
+    private BigDecimal clampPct(BigDecimal x) {
+        if (x == null) return BigDecimal.ZERO;
+        if (x.compareTo(BigDecimal.ZERO) < 0) return BigDecimal.ZERO;
+        if (x.compareTo(new BigDecimal("100")) > 0) return new BigDecimal("100");
+        return x;
+    }
+
+    // =========================
+    // Existing validate/default
+    // =========================
+
     private void applyDefaults(ChiTietDotGiamGia e, boolean createMode) {
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getTrangThai() == null) e.setTrangThai(true);
@@ -107,7 +203,6 @@ public class ChiTietDotGiamGiaService {
         if (createMode && e.getNgayTao() == null) e.setNgayTao(now);
         e.setNgayCapNhat(now);
 
-        // để demo an toàn nếu entity bạn đang để NOT NULL
         if (createMode && e.getNguoiTao() == null) e.setNguoiTao(1);
         if (e.getNguoiCapNhat() == null) e.setNguoiCapNhat(1);
     }
@@ -126,11 +221,6 @@ public class ChiTietDotGiamGiaService {
             throw new BadRequestEx("so_tien_giam_toi_da_rieng phải >= 0");
     }
 
-    /**
-     * Nghiệp vụ đơn giản để demo:
-     * - Nếu có giaTriGiamRieng (%): nên 0..100 (vì bạn chốt đợt %)
-     * - soTienGiamToiDaRieng có thể null hoặc >=0
-     */
     private void validateBusiness(ChiTietDotGiamGia e) {
         if (e.getGiaTriGiamRieng() != null) {
             if (e.getGiaTriGiamRieng().compareTo(BigDecimal.ZERO) < 0

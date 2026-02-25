@@ -1,5 +1,6 @@
 package com.example.datn_sevenstrike.controller;
 
+import com.example.datn_sevenstrike.dto.request.HoaDonChiTietRequest;
 import com.example.datn_sevenstrike.dto.request.HoaDonRequest;
 import com.example.datn_sevenstrike.dto.response.HoaDonResponse;
 import com.example.datn_sevenstrike.service.HoaDonService;
@@ -37,6 +38,12 @@ public class HoaDonController {
     @PostMapping
     public HoaDonResponse create(@RequestBody HoaDonRequest req) {
         return service.create(req);
+    }
+
+    // ✅ THÊM: cập nhật danh sách sản phẩm vào hóa đơn
+    @PostMapping("/{id}/chi-tiet")
+    public HoaDonResponse upsertChiTiet(@PathVariable Integer id, @RequestBody List<HoaDonChiTietRequest> items) {
+        return service.upsertChiTiet(id, items);
     }
 
     @PutMapping("/{id}/confirm-tai-quay-tien-mat")
