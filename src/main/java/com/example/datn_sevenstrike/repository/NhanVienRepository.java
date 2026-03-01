@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -27,4 +28,15 @@ public interface NhanVienRepository extends JpaRepository<NhanVien, Integer> {
     boolean existsByTenTaiKhoanAndXoaMemFalseAndIdNot(String tenTaiKhoan, Integer id);
 
     boolean existsByEmailAndXoaMemFalseAndIdNot(String email, Integer id);
+
+    @Query("""
+    select nv from NhanVien nv
+    join nv.quyenHan qh
+    where nv.xoaMem = false
+      and nv.trangThai = true
+      and qh.tenQuyenHan = 'ADMIN'
+      and qh.trangThai = true
+      and qh.xoaMem = false
+""")
+    List<NhanVien> findAllAdminActive();
 }

@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Data
 @Getter
 @Setter
@@ -15,5 +17,6 @@ import lombok.Setter;
 @Builder
 public class TopProductResponse {
     private String productName;
+    private BigDecimal price;
     private Long quantity;
 }

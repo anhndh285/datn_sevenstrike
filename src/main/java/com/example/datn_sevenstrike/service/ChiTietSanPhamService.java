@@ -7,10 +7,13 @@ import com.example.datn_sevenstrike.dto.response.ChiTietSanPhamResponse;
 import com.example.datn_sevenstrike.entity.ChiTietSanPham;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietDotGiamGiaRepository;
 import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChiTietSanPhamService {
 
     private final ChiTietSanPhamRepository repo;
+    private final ChiTietDotGiamGiaRepository chiTietDotGiamGiaRepository;
     private final ModelMapper mapper;
 
     public List<ChiTietSanPhamResponse> all() {
@@ -41,23 +45,91 @@ public class ChiTietSanPhamService {
                 .stream().map(this::toResponse).toList();
     }
 
-    // ============================
-    // POS: list CTSP bán hàng
-    // ============================
     @Transactional(readOnly = true)
     public List<ChiTietSanPhamBanHangResponse> banHang() {
-        return repo.findBanHang().stream().map(v ->
-                ChiTietSanPhamBanHangResponse.builder()
-                        .id(v.getId())
-                        .maCtsp(v.getMaCtsp())
-                        .tenSanPham(v.getTenSanPham())
-                        .mauSac(v.getMauSac())
-                        .kichCo(v.getKichCo())
-                        .soLuong(v.getSoLuong() == null ? 0 : v.getSoLuong())
-                        .giaBan(v.getGiaBan() == null ? BigDecimal.ZERO : v.getGiaBan())
-                        .anhUrl(v.getAnhUrl() == null ? "" : v.getAnhUrl())
-                        .build()
-        ).toList();
+        List<ChiTietSanPhamRepository.CtspBanHangView> views = repo.findBanHang();
+        if (views == null || views.isEmpty()) return new ArrayList<>();
+
+        List<Integer> ctspIds = new ArrayList<>();
+        for (var v : views) {
+            if (v != null && v.getId() != null) ctspIds.add(v.getId());
+        }
+
+        Map<Integer, ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bestByCtsp = new HashMap<>();
+        if (!ctspIds.isEmpty()) {
+            LocalDate today = LocalDate.now();
+            List<ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bests =
+                    chiTietDotGiamGiaRepository.findBestActiveDotsByCtspIds(ctspIds, today);
+
+            if (bests != null) {
+                for (var b : bests) {
+                    if (b != null && b.getCtspId() != null) bestByCtsp.put(b.getCtspId(), b);
+                }
+            }
+        }
+
+        List<ChiTietSanPhamBanHangResponse> out = new ArrayList<>();
+
+        for (var v : views) {
+            if (v == null || v.getId() == null) continue;
+
+            BigDecimal giaNiemYet = v.getGiaNiemYet() == null ? BigDecimal.ZERO : v.getGiaNiemYet();
+            BigDecimal giaBanTruocGiam = v.getGiaBan() == null ? BigDecimal.ZERO : v.getGiaBan();
+            BigDecimal giaGoc = giaBanTruocGiam.signum() > 0 ? giaBanTruocGiam : giaNiemYet;
+
+            BigDecimal phanTramGiam = BigDecimal.ZERO;
+            BigDecimal giaBanSauGiam = giaGoc;
+
+            Integer idDot = null;
+            String maDot = null;
+            String tenDot = null;
+
+            var best = bestByCtsp.get(v.getId());
+            if (best != null) {
+                BigDecimal pct = best.getGiaTriGiamApDung() == null ? BigDecimal.ZERO : best.getGiaTriGiamApDung();
+                if (pct.compareTo(BigDecimal.ZERO) < 0) pct = BigDecimal.ZERO;
+                if (pct.compareTo(new BigDecimal("100")) > 0) pct = new BigDecimal("100");
+
+                BigDecimal soTienGiam = giaGoc.multiply(pct)
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+                BigDecimal max = best.getSoTienGiamToiDa();
+                if (max != null && max.signum() > 0 && soTienGiam.compareTo(max) > 0) {
+                    soTienGiam = max.setScale(2, RoundingMode.HALF_UP);
+                }
+
+                BigDecimal tmp = giaGoc.subtract(soTienGiam);
+                if (tmp.signum() < 0) tmp = BigDecimal.ZERO;
+
+                phanTramGiam = pct.setScale(2, RoundingMode.HALF_UP);
+                giaBanSauGiam = tmp.setScale(2, RoundingMode.HALF_UP);
+
+                idDot = best.getIdDotGiamGia();
+                maDot = best.getMaDotGiamGia();
+                tenDot = best.getTenDotGiamGia();
+            } else {
+                giaBanSauGiam = giaGoc.setScale(2, RoundingMode.HALF_UP);
+            }
+
+            out.add(ChiTietSanPhamBanHangResponse.builder()
+                    .id(v.getId())
+                    .maCtsp(v.getMaCtsp())
+                    .tenSanPham(v.getTenSanPham())
+                    .mauSac(v.getMauSac())
+                    .kichCo(v.getKichCo())
+                    .soLuong(v.getSoLuong() == null ? 0 : v.getSoLuong())
+                    .giaGoc(giaGoc.setScale(2, RoundingMode.HALF_UP))
+                    .giaBan(giaBanSauGiam)
+                    .phanTramGiam(phanTramGiam)
+                    .idDotGiamGia(idDot)
+                    .maDotGiamGia(maDot)
+                    .tenDotGiamGia(tenDot)
+                    .anhUrl(v.getAnhUrl() == null ? "" : v.getAnhUrl())
+                    .build()
+            );
+        }
+
+        return out;
     }
 
     @Transactional

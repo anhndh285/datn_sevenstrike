@@ -7,8 +7,11 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "hoa_don_chi_tiet")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class HoaDonChiTiet {
 
     @Id
@@ -31,7 +34,7 @@ public class HoaDonChiTiet {
     private BigDecimal donGia;
 
     @Column(name = "thanh_tien", insertable = false, updatable = false, precision = 18, scale = 2)
-    private BigDecimal thanhTien; // computed
+    private BigDecimal thanhTien;
 
     @Column(name = "ghi_chu", length = 255)
     private String ghiChu;

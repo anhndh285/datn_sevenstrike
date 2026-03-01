@@ -21,11 +21,9 @@ public class LichSuHoaDon {
     @Column(name = "id_hoa_don", nullable = false)
     private Integer idHoaDon;
 
-    // CHỐT: int code (1..7)
     @Column(name = "trang_thai", nullable = false)
     private Integer trangThai;
 
-    // DB default sysdatetime() -> không set từ BE
     @Column(name = "thoi_gian", insertable = false, updatable = false)
     private LocalDateTime thoiGian;
 
@@ -34,4 +32,14 @@ public class LichSuHoaDon {
 
     @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
+
+    // ✅ NEW: lưu ai thao tác (đồng bộ tên cột với hệ thống)
+    @Column(name = "nguoi_cap_nhat")
+    private Integer nguoiCapNhat;
+
+    // ✅ Optional: join ra nhân viên để lấy tên/mã nếu muốn
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "nguoi_cap_nhat", insertable = false, updatable = false)
+    @ToString.Exclude
+    private NhanVien nhanVienCapNhat;
 }

@@ -5,8 +5,11 @@ import lombok.*;
 
 @Entity
 @Table(name = "phuong_thuc_thanh_toan")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PhuongThucThanhToan {
 
     @Id

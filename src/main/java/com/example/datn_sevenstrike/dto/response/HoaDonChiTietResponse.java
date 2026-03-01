@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/dto/response/HoaDonChiTietResponse.java
 package com.example.datn_sevenstrike.dto.response;
 
 import lombok.*;
@@ -21,19 +22,17 @@ public class HoaDonChiTietResponse {
     private Integer soLuong;
     private BigDecimal donGia;
 
-    private BigDecimal thanhTien; // computed
+    private BigDecimal thanhTien;
 
     private String ghiChu;
     private Boolean xoaMem;
 
-    // tiện demo
     private String maHoaDon;
 
     private String maChiTietSanPham;
     private String maSanPham;
     private String tenSanPham;
 
-    // ✅ thêm thông tin biến thể để FE hiển thị rõ
     private String mauSac;
     private String kichCo;
     private String loaiSan;

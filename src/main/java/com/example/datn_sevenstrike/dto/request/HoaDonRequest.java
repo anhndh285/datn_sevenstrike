@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/dto/request/HoaDonRequest.java
 package com.example.datn_sevenstrike.dto.request;
 
 import lombok.*;
@@ -18,7 +19,11 @@ public class HoaDonRequest {
     private Integer idPhieuGiamGia;
     private Integer idPhieuGiamGiaCaNhan;
 
-    private Boolean loaiDon; // 0: tại quầy | 1: giao hàng/online
+    /**
+     * ✅ DB mới: tinyint
+     * 0: Tại quầy | 1: Giao hàng | 2: Online
+     */
+    private Integer loaiDon;
 
     private BigDecimal phiVanChuyen;
     private BigDecimal tongTien;
@@ -29,6 +34,9 @@ public class HoaDonRequest {
     private String soDienThoaiKhachHang;
     private String emailKhachHang;
 
+    /**
+     * 1 Chưa xác nhận | 2 Đã xác nhận | 3 Chờ giao | 4 Đang giao | 5 Đã hoàn thành | 6 Đã hủy
+     */
     private Integer trangThaiHienTai;
 
     private LocalDateTime ngayThanhToan;

@@ -79,4 +79,12 @@ public class StatisticController {
         return service.getMiniCards();
     }
 
+    @GetMapping("/expected-revenue")
+    public ResponseEntity<Long> getExpectedRevenue(
+            @RequestParam String fromDate,
+            @RequestParam String toDate
+    ) {
+        Long revenue = service.getExpectedRevenue(fromDate, toDate);
+        return ResponseEntity.ok(revenue);
+    }
 }

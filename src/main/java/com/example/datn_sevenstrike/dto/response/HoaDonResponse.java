@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/dto/response/HoaDonResponse.java
 package com.example.datn_sevenstrike.dto.response;
 
 import lombok.*;
@@ -24,7 +25,11 @@ public class HoaDonResponse {
 
     private String maHoaDon;
 
-    private Boolean loaiDon;
+    /**
+     * ✅ DB mới: tinyint
+     * 0: Tại quầy | 1: Giao hàng | 2: Online
+     */
+    private Integer loaiDon;
 
     private BigDecimal phiVanChuyen;
     private BigDecimal tongTien;
@@ -53,7 +58,6 @@ public class HoaDonResponse {
 
     private List<HoaDonChiTietResponse> chiTietHoaDon;
 
-    // 🔥 CONSTRUCTOR CHUẨN KHỚP 100% VỚI JPQL CỦA ANH
     public HoaDonResponse(
             Integer id,
             Integer idKhachHang,
@@ -62,7 +66,7 @@ public class HoaDonResponse {
             Integer idPhieuGiamGia,
             Integer idPhieuGiamGiaCaNhan,
             String maHoaDon,
-            Boolean loaiDon,
+            Integer loaiDon,
             BigDecimal phiVanChuyen,
             BigDecimal tongTien,
             BigDecimal tongTienSauGiam,
@@ -108,14 +112,13 @@ public class HoaDonResponse {
         this.nguoiCapNhat = nguoiCapNhat;
     }
 
-    // Constructor rút gọn (nếu anh đang dùng ở chỗ khác)
     public HoaDonResponse(
             Integer id,
             Integer idKhachHang,
             Integer idNhanVien,
             String tenNhanVien,
             String maHoaDon,
-            Boolean loaiDon,
+            Integer loaiDon,
             BigDecimal tongTien,
             Integer trangThaiHienTai,
             LocalDateTime ngayTao

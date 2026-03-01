@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/repository/ChiTietSanPhamRepository.java
 package com.example.datn_sevenstrike.repository;
 
 import com.example.datn_sevenstrike.entity.ChiTietSanPham;
@@ -42,6 +43,7 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
         String getMauSac();
         String getKichCo();
         Integer getSoLuong();
+        BigDecimal getGiaNiemYet();
         BigDecimal getGiaBan();
         String getAnhUrl();
     }
@@ -54,6 +56,7 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
             ms.ten_mau_sac as mauSac,
             kc.ten_kich_thuoc as kichCo,
             ctsp.so_luong as soLuong,
+            ctsp.gia_niem_yet as giaNiemYet,
             ctsp.gia_ban as giaBan,
             a.duong_dan_anh as anhUrl
         from chi_tiet_san_pham ctsp
@@ -70,9 +73,6 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
     """, nativeQuery = true)
     List<CtspBanHangView> findBanHang();
 
-    // ================= POS SAFE STOCK UPDATE =================
-    // Trừ tồn có điều kiện để chống race (bán cùng lúc).
-    // Return 1 = trừ tồn OK, 0 = không đủ tồn hoặc CTSP không hợp lệ.
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
         update chi_tiet_san_pham
@@ -84,4 +84,15 @@ public interface ChiTietSanPhamRepository extends JpaRepository<ChiTietSanPham, 
            and so_luong >= :qty
     """, nativeQuery = true)
     int giamTonNeuDu(@Param("ctspId") Integer ctspId, @Param("qty") Integer qty);
+
+    // cộng tồn: nên cho cộng cả khi trang_thai=0 (vẫn phải trả tồn khi reset/hủy)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        update chi_tiet_san_pham
+           set so_luong = so_luong + :qty,
+               ngay_cap_nhat = sysdatetime()
+         where id = :ctspId
+           and xoa_mem = 0
+    """, nativeQuery = true)
+    int tangTon(@Param("ctspId") Integer ctspId, @Param("qty") Integer qty);
 }

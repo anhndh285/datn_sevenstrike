@@ -37,9 +37,12 @@ public class HoaDon {
     @Column(name = "ma_hoa_don", insertable = false, updatable = false, length = 7)
     private String maHoaDon;
 
-    // 0: tại quầy | 1: giao hàng/online
+    /**
+     * ✅ DB mới: tinyint
+     * 0: Tại quầy | 1: Giao hàng | 2: Online
+     */
     @Column(name = "loai_don", nullable = false)
-    private Boolean loaiDon;
+    private Integer loaiDon;
 
     @Column(name = "phi_van_chuyen", nullable = false, precision = 18, scale = 2)
     private BigDecimal phiVanChuyen;
@@ -65,7 +68,10 @@ public class HoaDon {
     @Column(name = "email_khach_hang", length = 255)
     private String emailKhachHang;
 
-    // int code
+    /**
+     * int code (1..6)
+     * 1 Chưa xác nhận | 2 Đã xác nhận | 3 Chờ giao | 4 Đang giao | 5 Hoàn thành | 6 Đã hủy
+     */
     @Column(name = "trang_thai_hien_tai", nullable = false)
     private Integer trangThaiHienTai;
 

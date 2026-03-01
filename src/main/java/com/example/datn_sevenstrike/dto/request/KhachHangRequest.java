@@ -1,8 +1,8 @@
+// File: src/main/java/com/example/datn_sevenstrike/dto/request/KhachHangRequest.java
 package com.example.datn_sevenstrike.dto.request;
 
-import lombok.*;
-
 import java.time.LocalDate;
+import lombok.*;
 
 @Getter
 @Setter
@@ -20,6 +20,8 @@ public class KhachHangRequest {
 
     private Boolean gioiTinh;
     private LocalDate ngaySinh;
+
+    private String anhDaiDien;
 
     private Boolean trangThai;
     private Boolean xoaMem;

@@ -1,15 +1,18 @@
+// File: src/main/java/com/example/datn_sevenstrike/entity/KhachHang.java
 package com.example.datn_sevenstrike.entity;
 
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import lombok.*;
 
 @Entity
 @Table(name = "khach_hang")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class KhachHang {
 
     @Id
@@ -39,6 +42,9 @@ public class KhachHang {
 
     @Column(name = "ngay_sinh")
     private LocalDate ngaySinh;
+
+    @Column(name = "anh_dai_dien", length = 500)
+    private String anhDaiDien;
 
     @Column(name = "trang_thai", nullable = false)
     private Boolean trangThai;

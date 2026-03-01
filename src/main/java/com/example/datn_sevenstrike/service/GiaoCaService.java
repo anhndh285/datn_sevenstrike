@@ -100,7 +100,7 @@ public class GiaoCaService {
         if (req.getTienDauCaNhap() != null && req.getTienDauCaNhap().compareTo(tienDuKien) == 0) {
             giaoCa.setDaXacNhanTienDauCa(true);
         } else {
-            giaoCa.setDaXacNhanTienDauCa(false);
+            throw new BadRequestEx("Tiền đầu ca không khớp với tiền ca trước");
         }
 
         giaoCa.setTrangThai(0);

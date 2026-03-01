@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/service/KhachHangService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.KhachHangRequest;
@@ -84,6 +85,9 @@ public class KhachHangService {
         if (req.getSoDienThoai() != null) db.setSoDienThoai(req.getSoDienThoai());
         if (req.getGioiTinh() != null) db.setGioiTinh(req.getGioiTinh());
         if (req.getNgaySinh() != null) db.setNgaySinh(req.getNgaySinh());
+
+        // ✅ thêm ảnh đại diện
+        if (req.getAnhDaiDien() != null) db.setAnhDaiDien(req.getAnhDaiDien());
 
         // ✅ FIX: cập nhật trạng thái (toggle FE)
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());

@@ -8,8 +8,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "giao_dich_thanh_toan")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class GiaoDichThanhToan {
 
     @Id
@@ -52,7 +55,8 @@ public class GiaoDichThanhToan {
     @Column(name = "du_lieu_phan_hoi")
     private String duLieuPhanHoi;
 
-    @Column(name = "thoi_gian_tao", nullable = false)
+    // ✅ DB default sysdatetime() -> để DB tự set
+    @Column(name = "thoi_gian_tao", insertable = false, updatable = false)
     private LocalDateTime thoiGianTao;
 
     @Column(name = "thoi_gian_cap_nhat")
@@ -64,6 +68,10 @@ public class GiaoDichThanhToan {
     @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
 
+    // ✅ NEW: lưu ai thao tác (đồng bộ tên cột với hệ thống)
+    @Column(name = "nguoi_cap_nhat")
+    private Integer nguoiCapNhat;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_hoa_don", insertable = false, updatable = false)
     @ToString.Exclude
@@ -73,4 +81,10 @@ public class GiaoDichThanhToan {
     @JoinColumn(name = "id_phuong_thuc_thanh_toan", insertable = false, updatable = false)
     @ToString.Exclude
     private PhuongThucThanhToan phuongThucThanhToan;
+
+    // ✅ Optional: join ra nhân viên để lấy tên/mã nếu muốn
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "nguoi_cap_nhat", insertable = false, updatable = false)
+    @ToString.Exclude
+    private NhanVien nhanVienCapNhat;
 }
