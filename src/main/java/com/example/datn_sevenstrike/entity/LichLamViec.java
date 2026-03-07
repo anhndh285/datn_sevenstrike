@@ -22,7 +22,7 @@ public class LichLamViec {
     private Integer id;
 
     @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "id_ca_lam", nullable = false)
     private CaLam idCaLam;
 

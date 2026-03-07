@@ -46,4 +46,5 @@ public class HoaDonRequest {
 
     private Integer nguoiTao;
     private Integer nguoiCapNhat;
+    private Integer idGiaoCa;
 }

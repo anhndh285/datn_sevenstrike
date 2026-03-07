@@ -1,25 +1,24 @@
-// File: src/main/java/com/example/datn_sevenstrike/service/client/ClientOrderService.java
 package com.example.datn_sevenstrike.service.client;
 
+import com.example.datn_sevenstrike.constants.TrangThaiHoaDon;
 import com.example.datn_sevenstrike.dto.client.*;
 import com.example.datn_sevenstrike.entity.*;
-import com.example.datn_sevenstrike.constants.TrangThaiHoaDon;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.*;
 import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -48,8 +47,7 @@ public class ClientOrderService {
 
     @Transactional(readOnly = true)
     public List<ProductClientDTO> getBestSellingProducts() {
-        LocalDateTime startOfMonth = LocalDateTime.now()
-                .withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime startOfMonth = LocalDateTime.now().minusMonths(12);
         List<Integer> topIds = hdctRepo.findBestSellingProductIds(startOfMonth, PageRequest.of(0, 8));
 
         List<ProductClientDTO> result = new ArrayList<>();
@@ -64,8 +62,7 @@ public class ClientOrderService {
 
     @Transactional(readOnly = true)
     public List<ProductClientDTO> getNewArrivalProducts() {
-        LocalDateTime threshold = LocalDateTime.now()
-                .withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime threshold = LocalDateTime.now().minusMonths(12);
         List<SanPham> list = sanPhamRepo.findNewArrivals(threshold, PageRequest.of(0, 8));
         return list.stream().map(this::mapToProductClientDTO).collect(Collectors.toList());
     }
@@ -74,6 +71,7 @@ public class ClientOrderService {
     public ProductDetailClientDTO getProductDetail(Integer id) {
         SanPham sp = sanPhamRepo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy sản phẩm id=" + id));
+
         return mapToProductDetailClientDTO(sp);
     }
 
@@ -105,6 +103,7 @@ public class ClientOrderService {
         for (PhieuGiamGiaCaNhan cn : personalList) {
             PhieuGiamGia p = cn.getPhieuGiamGia();
             if (p == null || Boolean.TRUE.equals(p.getXoaMem())) continue;
+            if (!Boolean.TRUE.equals(p.getTrangThai())) continue;
 
             result.put(p.getId(), MyVoucherDTO.builder()
                     .id(p.getId())
@@ -224,8 +223,10 @@ public class ClientOrderService {
                 firstProductName = ctsp.getSanPham().getTenSanPham();
                 List<AnhChiTietSanPham> imgs = anhRepo.findAllByIdChiTietSanPhamAndXoaMemFalseOrderByIdDesc(ctsp.getId());
                 if (!imgs.isEmpty()) {
-                    thumb = imgs.stream().filter(img -> Boolean.TRUE.equals(img.getLaAnhDaiDien()))
-                            .findFirst().map(img -> getFullUrl(img.getDuongDanAnh()))
+                    thumb = imgs.stream()
+                            .filter(img -> Boolean.TRUE.equals(img.getLaAnhDaiDien()))
+                            .findFirst()
+                            .map(img -> getFullUrl(img.getDuongDanAnh()))
                             .orElse(getFullUrl(imgs.get(0).getDuongDanAnh()));
                 }
             }
@@ -252,14 +253,19 @@ public class ClientOrderService {
         String variant = "";
 
         if (ctsp != null) {
-            if (ctsp.getSanPham() != null) name = ctsp.getSanPham().getTenSanPham();
+            if (ctsp.getSanPham() != null) {
+                name = ctsp.getSanPham().getTenSanPham();
+            }
+
             variant = (ctsp.getMauSac() != null ? ctsp.getMauSac().getTenMauSac() : "") + " - " +
                     (ctsp.getKichThuoc() != null ? ctsp.getKichThuoc().getTenKichThuoc() : "");
 
             List<AnhChiTietSanPham> imgs = anhRepo.findAllByIdChiTietSanPhamAndXoaMemFalseOrderByIdDesc(ctsp.getId());
             if (!imgs.isEmpty()) {
-                thumb = imgs.stream().filter(img -> Boolean.TRUE.equals(img.getLaAnhDaiDien()))
-                        .findFirst().map(img -> getFullUrl(img.getDuongDanAnh()))
+                thumb = imgs.stream()
+                        .filter(img -> Boolean.TRUE.equals(img.getLaAnhDaiDien()))
+                        .findFirst()
+                        .map(img -> getFullUrl(img.getDuongDanAnh()))
                         .orElse(getFullUrl(imgs.get(0).getDuongDanAnh()));
             }
         }
@@ -285,6 +291,13 @@ public class ClientOrderService {
         LocalDate today = LocalDate.now();
 
         for (OrderItemRequest itemReq : req.getItems()) {
+            if (itemReq.getIdChiTietSanPham() == null) {
+                throw new BadRequestEx("Thiếu id chi tiết sản phẩm");
+            }
+            if (itemReq.getSoLuong() == null || itemReq.getSoLuong() <= 0) {
+                throw new BadRequestEx("Số lượng sản phẩm phải lớn hơn 0");
+            }
+
             ChiTietSanPham ctsp = ctspRepo.findByIdAndXoaMemFalse(itemReq.getIdChiTietSanPham())
                     .orElseThrow(() -> new BadRequestEx("Sản phẩm không tồn tại id=" + itemReq.getIdChiTietSanPham()));
 
@@ -298,7 +311,11 @@ public class ClientOrderService {
 
             if (bestDiscountOrder.isPresent()) {
                 BigDecimal pct = bestDiscountOrder.get().getGiaTriGiamApDung();
-                price = price.multiply(BigDecimal.ONE.subtract(pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)))
+                price = price.multiply(
+                        BigDecimal.ONE.subtract(
+                                pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
+                        )
+                )
                         .setScale(0, RoundingMode.HALF_UP);
             }
 
@@ -316,9 +333,18 @@ public class ClientOrderService {
 
         BigDecimal tienGiam = BigDecimal.ZERO;
         PhieuGiamGia voucher = null;
+
         if (req.getIdPhieuGiamGia() != null) {
             voucher = phieuRepo.findByIdAndXoaMemFalse(req.getIdPhieuGiamGia())
                     .orElseThrow(() -> new BadRequestEx("Voucher không tồn tại"));
+
+            boolean laPhieuCaNhan = !phieuCaNhanRepo
+                    .findAllByIdPhieuGiamGiaAndXoaMemFalseOrderByIdDesc(req.getIdPhieuGiamGia())
+                    .isEmpty();
+
+            if (laPhieuCaNhan && req.getIdKhachHang() == null) {
+                throw new BadRequestEx("Phiếu giảm giá này chỉ dành cho khách hàng đã đăng nhập");
+            }
 
             if (!Boolean.TRUE.equals(voucher.getTrangThai())
                     || voucher.getSoLuongSuDung() <= 0
@@ -331,22 +357,26 @@ public class ClientOrderService {
                 throw new BadRequestEx("Đơn hàng chưa đạt giá trị tối thiểu của voucher");
             }
 
-            if (Boolean.TRUE.equals(voucher.getLoaiPhieuGiamGia()) && voucher.getGiaTriGiamGia() != null) {
-                tienGiam = tongTien.multiply(voucher.getGiaTriGiamGia()).divide(BigDecimal.valueOf(100));
+            if (Boolean.FALSE.equals(voucher.getLoaiPhieuGiamGia()) && voucher.getGiaTriGiamGia() != null) {
+                tienGiam = tongTien.multiply(voucher.getGiaTriGiamGia())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
                 if (voucher.getSoTienGiamToiDa() != null && tienGiam.compareTo(voucher.getSoTienGiamToiDa()) > 0) {
                     tienGiam = voucher.getSoTienGiamToiDa();
                 }
             } else {
-                tienGiam = voucher.getSoTienGiamToiDa();
+                tienGiam = voucher.getGiaTriGiamGia() != null ? voucher.getGiaTriGiamGia() : BigDecimal.ZERO;
             }
 
-            if (tienGiam.compareTo(tongTien) > 0) tienGiam = tongTien;
+            if (tienGiam.compareTo(tongTien) > 0) {
+                tienGiam = tongTien;
+            }
 
             voucher.setSoLuongSuDung(voucher.getSoLuongSuDung() - 1);
             phieuRepo.save(voucher);
         }
 
-        BigDecimal phiVanChuyen = new BigDecimal(40000);
+        BigDecimal phiVanChuyen = new BigDecimal("40000");
         BigDecimal thanhTien = tongTien.subtract(tienGiam);
 
         HoaDon hd = HoaDon.builder()
@@ -360,7 +390,7 @@ public class ClientOrderService {
                 .tongTien(tongTien)
                 .tongTienSauGiam(thanhTien)
                 .phiVanChuyen(phiVanChuyen)
-                .loaiDon(2) // ✅ 0 tại quầy | 1 giao hàng | 2 online
+                .loaiDon(2)
                 .trangThaiHienTai(1)
                 .ngayTao(LocalDateTime.now())
                 .ngayCapNhat(LocalDateTime.now())
@@ -409,13 +439,18 @@ public class ClientOrderService {
                     break;
                 }
             }
-            if (thumb == null && !imgs.isEmpty()) thumb = getFullUrl(imgs.get(0).getDuongDanAnh());
-            if (thumb != null) break;
+            if (thumb == null && !imgs.isEmpty()) {
+                thumb = getFullUrl(imgs.get(0).getDuongDanAnh());
+            }
+            if (thumb != null) {
+                break;
+            }
         }
 
         List<VariantClientDTO> variantDTOs = variants.stream().map(v -> {
             BigDecimal giaBan = v.getGiaBan() != null ? v.getGiaBan() : v.getGiaNiemYet();
-            BigDecimal giaGoc = null, giaSauGiam = null;
+            BigDecimal giaGoc = null;
+            BigDecimal giaSauGiam = null;
             Integer phanTramGiam = null;
 
             Optional<ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bestDiscount =
@@ -424,7 +459,11 @@ public class ClientOrderService {
             if (bestDiscount.isPresent()) {
                 BigDecimal pct = bestDiscount.get().getGiaTriGiamApDung();
                 giaGoc = giaBan;
-                giaSauGiam = giaBan.multiply(BigDecimal.ONE.subtract(pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)))
+                giaSauGiam = giaBan.multiply(
+                        BigDecimal.ONE.subtract(
+                                pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
+                        )
+                )
                         .setScale(0, RoundingMode.HALF_UP);
                 phanTramGiam = pct.intValue();
             }
@@ -447,17 +486,23 @@ public class ClientOrderService {
 
         BigDecimal min = variantDTOs.stream()
                 .map(v -> v.getGiaSauGiam() != null ? v.getGiaSauGiam() : v.getGiaBan())
-                .filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO);
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
 
         BigDecimal max = variantDTOs.stream()
                 .map(VariantClientDTO::getGiaBan)
-                .filter(Objects::nonNull).max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO);
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
 
         VariantClientDTO cheapestDisc = variantDTOs.stream()
                 .filter(v -> v.getGiaSauGiam() != null)
-                .min(Comparator.comparing(VariantClientDTO::getGiaSauGiam)).orElse(null);
+                .min(Comparator.comparing(VariantClientDTO::getGiaSauGiam))
+                .orElse(null);
 
-        boolean hangCoSan = variantDTOs.stream().anyMatch(v -> v.getSoLuong() != null && v.getSoLuong() > 0);
+        boolean hangCoSan = variantDTOs.stream()
+                .anyMatch(v -> v.getSoLuong() != null && v.getSoLuong() > 0);
 
         List<String> kichThuocCoSan = variantDTOs.stream()
                 .filter(v -> v.getSoLuong() != null && v.getSoLuong() > 0)
@@ -511,15 +556,24 @@ public class ClientOrderService {
 
             for (AnhChiTietSanPham img : imgs) {
                 imgSet.add(getFullUrl(img.getDuongDanAnh()));
-                if (Boolean.TRUE.equals(img.getLaAnhDaiDien()) && thumb == null) thumb = getFullUrl(img.getDuongDanAnh());
-                if (Boolean.TRUE.equals(img.getLaAnhDaiDien())) variantThumb = getFullUrl(img.getDuongDanAnh());
+                if (Boolean.TRUE.equals(img.getLaAnhDaiDien()) && thumb == null) {
+                    thumb = getFullUrl(img.getDuongDanAnh());
+                }
+                if (Boolean.TRUE.equals(img.getLaAnhDaiDien())) {
+                    variantThumb = getFullUrl(img.getDuongDanAnh());
+                }
             }
 
-            if (thumb == null && !imgs.isEmpty()) thumb = getFullUrl(imgs.get(0).getDuongDanAnh());
-            if (variantThumb == null && !imgs.isEmpty()) variantThumb = getFullUrl(imgs.get(0).getDuongDanAnh());
+            if (thumb == null && !imgs.isEmpty()) {
+                thumb = getFullUrl(imgs.get(0).getDuongDanAnh());
+            }
+            if (variantThumb == null && !imgs.isEmpty()) {
+                variantThumb = getFullUrl(imgs.get(0).getDuongDanAnh());
+            }
 
             BigDecimal giaBan = v.getGiaBan() != null ? v.getGiaBan() : v.getGiaNiemYet();
-            BigDecimal giaGoc = null, giaSauGiam = null;
+            BigDecimal giaGoc = null;
+            BigDecimal giaSauGiam = null;
             Integer phanTramGiam = null;
 
             Optional<ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bestDiscount2 =
@@ -528,7 +582,11 @@ public class ClientOrderService {
             if (bestDiscount2.isPresent()) {
                 BigDecimal pct = bestDiscount2.get().getGiaTriGiamApDung();
                 giaGoc = giaBan;
-                giaSauGiam = giaBan.multiply(BigDecimal.ONE.subtract(pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)))
+                giaSauGiam = giaBan.multiply(
+                        BigDecimal.ONE.subtract(
+                                pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
+                        )
+                )
                         .setScale(0, RoundingMode.HALF_UP);
                 phanTramGiam = pct.intValue();
             }
@@ -549,19 +607,26 @@ public class ClientOrderService {
                     .build());
         }
 
-        if (thumb == null && !imgSet.isEmpty()) thumb = imgSet.iterator().next();
+        if (thumb == null && !imgSet.isEmpty()) {
+            thumb = imgSet.iterator().next();
+        }
 
         BigDecimal min = variantDTOs.stream()
                 .map(v -> v.getGiaSauGiam() != null ? v.getGiaSauGiam() : v.getGiaBan())
-                .filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(BigDecimal.ZERO);
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
 
         BigDecimal max = variantDTOs.stream()
                 .map(VariantClientDTO::getGiaBan)
-                .filter(Objects::nonNull).max(Comparator.naturalOrder()).orElse(BigDecimal.ZERO);
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
 
         VariantClientDTO cheapestDisc = variantDTOs.stream()
                 .filter(v -> v.getGiaSauGiam() != null)
-                .min(Comparator.comparing(VariantClientDTO::getGiaSauGiam)).orElse(null);
+                .min(Comparator.comparing(VariantClientDTO::getGiaSauGiam))
+                .orElse(null);
 
         return ProductDetailClientDTO.builder()
                 .id(sp.getId())
@@ -597,7 +662,9 @@ public class ClientOrderService {
             normalized = normalized.substring(idx);
         }
 
-        if (!normalized.startsWith("/")) normalized = "/" + normalized;
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
 
         return backendUrl + normalized;
     }

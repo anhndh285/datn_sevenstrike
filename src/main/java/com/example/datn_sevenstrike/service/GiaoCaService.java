@@ -4,7 +4,6 @@ import com.example.datn_sevenstrike.dto.request.GiaoCaRequest;
 import com.example.datn_sevenstrike.dto.response.GiaoCaResponse;
 import com.example.datn_sevenstrike.entity.GiaoCa;
 import com.example.datn_sevenstrike.entity.LichLamViec;
-import com.example.datn_sevenstrike.entity.LichLamViecNhanVien;
 import com.example.datn_sevenstrike.entity.NhanVien;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
@@ -13,12 +12,14 @@ import com.example.datn_sevenstrike.repository.LichLamViecNhanVienRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecRepository;
 import com.example.datn_sevenstrike.repository.NhanVienRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -31,6 +32,13 @@ public class GiaoCaService {
     private final LichLamViecNhanVienRepository lichLamViecNhanVienRepo;
     private final NhanVienRepository nhanVienRepo;
 
+    @Transactional(readOnly = true)
+    public Page<GiaoCaResponse> getPage(int pageNo, int pageSize) {
+        Pageable pageable = PageRequest.of(pageNo, pageSize, Sort.by(Sort.Direction.DESC, "thoiGianNhanCa"));
+        return giaoCaRepo.findAll(pageable).map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
     public GiaoCaResponse getCaLamViecHienTai(Integer idNhanVien) {
         GiaoCa gc = giaoCaRepo.findCaDangHoatDong(idNhanVien)
                 .orElseThrow(() -> new NotFoundEx("Nhân viên hiện không trong ca làm việc nào."));
@@ -42,12 +50,10 @@ public class GiaoCaService {
         GiaoCa gc = giaoCaRepo.findById(idGiaoCa)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ca"));
 
-        // NEW: Đảm bảo constraint CK_gc_tien (tiền phải >= 0)
         if (tienNhap == null || tienNhap.compareTo(BigDecimal.ZERO) < 0) {
             throw new BadRequestEx("Tiền nhập đầu ca phải lớn hơn hoặc bằng 0!");
         }
 
-        // NEW: Đảm bảo constraint CK_gc_xac_nhan_tien
         if (gc.getTienBanGiaoDuKien().compareTo(tienNhap) != 0) {
             throw new BadRequestEx("Tiền đầu ca không khớp với số tiền hệ thống dự kiến (" + gc.getTienBanGiaoDuKien() + ")!");
         }
@@ -70,7 +76,6 @@ public class GiaoCaService {
         LichLamViec lich = lichLamViecRepo.findByIdAndXoaMemFalse(req.getIdLichLamViec())
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy lịch làm việc!"));
 
-        // NEW: Kiểm tra xem nhân viên này có thực sự được phân công vào lịch làm việc không
         boolean isAssigned = lichLamViecNhanVienRepo.existsByLichLamViecAndNhanVien(lich.getId(), nv.getId());
         if (!isAssigned) {
             throw new BadRequestEx("Nhân viên không có trong danh sách phân công của lịch làm việc này!");
@@ -82,7 +87,6 @@ public class GiaoCaService {
 
         if (catruocOpt.isPresent()) {
             caTruoc = catruocOpt.get();
-            // NEW: Logic tiền bàn giao chuẩn = Tiền vốn đầu ca trước + Tổng doanh thu thu được trong ca trước
             BigDecimal tienVonCaTruoc = caTruoc.getTienDauCaNhap() != null ? caTruoc.getTienDauCaNhap() : BigDecimal.ZERO;
             BigDecimal doanhThuCaTruoc = giaoCaRepo.tinhDoanhThuCa(caTruoc.getId());
             tienDuKien = tienVonCaTruoc.add(doanhThuCaTruoc);
@@ -94,7 +98,6 @@ public class GiaoCaService {
         giaoCa.setGiaoCaTruoc(caTruoc);
         giaoCa.setThoiGianNhanCa(LocalDateTime.now());
         giaoCa.setTienBanGiaoDuKien(tienDuKien);
-
         giaoCa.setTienDauCaNhap(req.getTienDauCaNhap());
 
         if (req.getTienDauCaNhap() != null && req.getTienDauCaNhap().compareTo(tienDuKien) == 0) {
@@ -122,7 +125,6 @@ public class GiaoCaService {
             throw new BadRequestEx("Bạn chưa xác nhận tiền đầu ca, không thể kết thúc ca!");
         }
 
-        // Đóng ca (Đảm bảo constraint CK_gc_dong_ca)
         gc.setThoiGianKetCa(LocalDateTime.now());
         gc.setTrangThai(1);
         gc.setGhiChu(req.getGhiChu());
@@ -130,7 +132,6 @@ public class GiaoCaService {
         return mapToResponse(giaoCaRepo.save(gc));
     }
 
-    // Helper: Map Entity to Response
     private GiaoCaResponse mapToResponse(GiaoCa entity) {
         GiaoCaResponse res = GiaoCaResponse.builder()
                 .id(entity.getId())
@@ -148,11 +149,37 @@ public class GiaoCaService {
                 .nguoiCapNhat(entity.getNguoiCapNhat())
                 .build();
 
-        if (entity.getLichLamViec().getIdCaLam() != null) {
+        if (entity.getNhanVien() != null) {
+            res.setTenNhanVien(entity.getNhanVien().getTenNhanVien());
+        }
+
+        if (entity.getLichLamViec() != null && entity.getLichLamViec().getIdCaLam() != null) {
             var ca = entity.getLichLamViec().getIdCaLam();
             res.setTenCaLam(ca.getTenCa());
             res.setGioBatDauCa(ca.getGioBatDau());
             res.setGioKetThucCa(ca.getGioKetThuc());
+        }
+
+        // ✅ ĐÃ MỞ LẠI TOÀN BỘ LOGIC TÍNH TIỀN
+        try {
+            BigDecimal doanhThu = giaoCaRepo.tinhDoanhThuCa(entity.getId());
+            res.setTongTienTrongCa(doanhThu != null ? doanhThu : BigDecimal.ZERO);
+        } catch (Exception e) {
+            res.setTongTienTrongCa(BigDecimal.ZERO);
+        }
+
+        try {
+            BigDecimal tienMatCa = giaoCaRepo.tinhDoanhThuTienMatCa(entity.getId());
+            res.setTienMatTrongCa(tienMatCa != null ? tienMatCa : BigDecimal.ZERO);
+        } catch (Exception e) {
+            res.setTienMatTrongCa(BigDecimal.ZERO);
+        }
+
+        try {
+            BigDecimal tienCkCa = giaoCaRepo.tinhDoanhThuChuyenKhoanCa(entity.getId());
+            res.setTienChuyenKhoanTrongCa(tienCkCa != null ? tienCkCa : BigDecimal.ZERO);
+        } catch (Exception e) {
+            res.setTienChuyenKhoanTrongCa(BigDecimal.ZERO);
         }
 
         return res;

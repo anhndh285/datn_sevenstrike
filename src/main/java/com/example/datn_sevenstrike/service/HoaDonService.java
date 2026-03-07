@@ -53,6 +53,9 @@ public class HoaDonService {
     private final GiaoDichThanhToanRepository giaoDichThanhToanRepository;
     private final PhuongThucThanhToanRepository phuongThucThanhToanRepository;
 
+    // ✅ Thêm giao ca để tự động gắn id_giao_ca khi tạo/cập nhật hóa đơn POS
+    private final GiaoCaRepository giaoCaRepo;
+
     private final ModelMapper mapper;
 
     @PersistenceContext
@@ -71,9 +74,9 @@ public class HoaDonService {
         private Integer trangThai;
         private String noiDung;
 
-        private Integer nguoiCapNhat;   // id nhân viên
-        private String maNhanVien;  // ma nhan vien dang thuc hien hanh dong luc do
-        private String tenTaiKhoan; // ten tai khoan dang thuc hien hanh dong luc do
+        private Integer nguoiCapNhat;
+        private String maNhanVien;
+        private String tenTaiKhoan;
         private String nguoiThaoTac;
     }
 
@@ -375,6 +378,17 @@ public class HoaDonService {
         HoaDon hd = mapper.map(req, HoaDon.class);
         hd.setId(null);
 
+        // ✅ Tự động gắn ca đang hoạt động, không có ca thì để null để không chặn admin
+        if (hd.getIdNhanVien() != null) {
+            giaoCaRepo.findCaDangHoatDong(hd.getIdNhanVien())
+                    .ifPresentOrElse(
+                            ca -> hd.setIdGiaoCa(ca.getId()),
+                            () -> hd.setIdGiaoCa(null)
+                    );
+        } else {
+            hd.setIdGiaoCa(null);
+        }
+
         applyDefaults(hd);
 
         if (hd.getTrangThaiHienTai() == null) {
@@ -414,6 +428,17 @@ public class HoaDonService {
 
         if (req.getIdKhachHang() != null) hd.setIdKhachHang(req.getIdKhachHang());
         if (req.getIdNhanVien() != null) hd.setIdNhanVien(req.getIdNhanVien());
+
+        // ✅ Dọn và gắn lại id_giao_ca theo ca đang hoạt động của nhân viên hiện tại
+        if (hd.getIdNhanVien() != null) {
+            giaoCaRepo.findCaDangHoatDong(hd.getIdNhanVien())
+                    .ifPresentOrElse(
+                            ca -> hd.setIdGiaoCa(ca.getId()),
+                            () -> hd.setIdGiaoCa(null)
+                    );
+        } else {
+            hd.setIdGiaoCa(null);
+        }
 
         if (req.getIdPhieuGiamGia() != null) hd.setIdPhieuGiamGia(req.getIdPhieuGiamGia());
         if (req.getIdPhieuGiamGiaCaNhan() != null) hd.setIdPhieuGiamGiaCaNhan(req.getIdPhieuGiamGiaCaNhan());
@@ -817,7 +842,7 @@ public class HoaDonService {
     }
 
     // =========================================================
-    // ===== NEW: CONFIRM THANH TOÁN CHO GIAO HÀNG / ONLINE ======
+    // ===== CONFIRM THANH TOÁN CHO GIAO HÀNG / ONLINE =========
     // =========================================================
 
     private boolean daCoGiaoDichThanhToan(Integer idHoaDon) {
@@ -890,7 +915,6 @@ public class HoaDonService {
             hd.setTongTien(tongTien);
             hd.setTongTienSauGiam(tongTienSauGiam);
         } else {
-            // ✅ đã từng thanh toán -> không consume voucher lại, dùng số liệu đang có
             tongTien = hd.getTongTien() == null ? tongTienHang.add(hd.getPhiVanChuyen()) : hd.getTongTien();
             tongTienSauGiam = hd.getTongTienSauGiam() == null ? tongTien : hd.getTongTienSauGiam();
 
@@ -941,7 +965,6 @@ public class HoaDonService {
             throw new BadRequestEx("Tổng tiền thanh toán phải đúng bằng tổng tiền sau giảm (" + expected + ")");
         }
 
-        // ✅ ghi lại giao dịch thanh toán (cho phép ghi đè)
         giaoDichThanhToanRepository.deleteHardByIdHoaDon(idHoaDon);
 
         String note = (body == null || body.getGhiChu() == null || body.getGhiChu().isBlank())
@@ -981,17 +1004,25 @@ public class HoaDonService {
             hd.setNgayThanhToan(LocalDateTime.now());
         }
 
+        hd.setTrangThaiHienTai(TrangThaiHoaDon.DA_XAC_NHAN.code);
         hd.setNgayCapNhat(LocalDateTime.now());
+
         if (nguoiCapNhat != null) hd.setNguoiCapNhat(nguoiCapNhat);
 
         validateTheoLoaiDon(hd);
 
         HoaDon saved = repo.save(hd);
 
-        // ✅ đẩy lịch sử thao tác để timeline vẫn có log
-        pushHistory(saved.getId(), saved.getTrangThaiHienTai(),
-                (note == null) ? "Xác nhận thanh toán đơn giao hàng/online" : note,
-                nguoiCapNhat);
+        String noiDungLichSu;
+        if (note != null && !note.isBlank()) {
+            noiDungLichSu = note;
+        } else if (loaiDon == LOAI_DON_GIAO_HANG) {
+            noiDungLichSu = "Xác nhận đơn giao hàng";
+        } else {
+            noiDungLichSu = "Xác nhận đơn online";
+        }
+
+        pushHistory(saved.getId(), saved.getTrangThaiHienTai(), noiDungLichSu, nguoiCapNhat);
 
         return toResponse(saved);
     }
