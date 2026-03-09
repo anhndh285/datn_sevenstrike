@@ -1,7 +1,5 @@
 package com.example.datn_sevenstrike.dto.response;
 
-import com.example.datn_sevenstrike.entity.CaLam;
-import com.example.datn_sevenstrike.entity.NhanVien;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -16,6 +14,7 @@ import java.time.LocalTime;
 public class LichLamViecResponse {
 
     private Integer id;
+    private Integer idCaLam;
 
     private String tenCa;
     private LocalTime gioBatDau;

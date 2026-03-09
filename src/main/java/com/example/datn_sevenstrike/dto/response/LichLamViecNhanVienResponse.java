@@ -15,6 +15,9 @@ import java.time.LocalTime;
 public class LichLamViecNhanVienResponse {
     private Integer id;
 
+    private Integer idLichLamViec;
+    private Integer idCaLam;
+
     // Thông tin lịch
     private LichLamViec lichLamViec;
     private String tenCa;

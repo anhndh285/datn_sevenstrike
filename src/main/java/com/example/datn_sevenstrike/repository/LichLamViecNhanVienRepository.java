@@ -15,23 +15,57 @@ import java.util.Optional;
 @Repository
 public interface LichLamViecNhanVienRepository extends JpaRepository<LichLamViecNhanVien, Integer> {
 
-    @Query("SELECT l FROM LichLamViecNhanVien l WHERE l.lichLamViec.id = :idLich AND l.nhanVien.id = :idNv AND l.xoaMem = false")
+    @Query("""
+        SELECT l
+        FROM LichLamViecNhanVien l
+        WHERE l.lichLamViec.id = :idLich
+          AND l.nhanVien.id = :idNv
+          AND l.xoaMem = false
+    """)
     Optional<LichLamViecNhanVien> findByLichAndNhanVien(Integer idLich, Integer idNv);
 
-    List<LichLamViecNhanVien> findAllByXoaMemFalseOrderByIdDesc();
+    @Query("""
+        SELECT l
+        FROM LichLamViecNhanVien l
+        WHERE l.xoaMem = false
+          AND l.lichLamViec.xoaMem = false
+        ORDER BY l.id DESC
+    """)
+    List<LichLamViecNhanVien> findAllActiveOrderByIdDesc();
 
     Page<LichLamViecNhanVien> findAllByXoaMemFalse(Pageable pageable);
 
     Optional<LichLamViecNhanVien> findByIdAndXoaMemFalse(Integer id);
 
-    @Query("SELECT l FROM LichLamViecNhanVien l " +
-            "WHERE l.nhanVien.id = :idNv " +
-            "AND l.lichLamViec.ngayLam = :ngayLam " +
-            "AND l.xoaMem = false " +
-            "ORDER BY l.id DESC")
-    List<LichLamViecNhanVien> findAllByNhanVienAndNgayLam(@Param("idNv") Integer idNhanVien, @Param("ngayLam") LocalDate ngayLam);
+    @Query("""
+        SELECT l
+        FROM LichLamViecNhanVien l
+        WHERE l.nhanVien.id = :idNv
+          AND l.lichLamViec.ngayLam = :ngayLam
+          AND l.xoaMem = false
+          AND l.lichLamViec.xoaMem = false
+        ORDER BY l.id DESC
+    """)
+    List<LichLamViecNhanVien> findAllByNhanVienAndNgayLam(@Param("idNv") Integer idNhanVien,
+                                                          @Param("ngayLam") LocalDate ngayLam);
 
-    @Query("SELECT COUNT(l) > 0 FROM LichLamViecNhanVien l WHERE l.lichLamViec.id = :idLich AND l.nhanVien.id = :idNv AND l.xoaMem = false")
-    boolean existsByLichLamViecAndNhanVien(@Param("idLich") Integer idLich, @Param("idNv") Integer idNv);
+    @Query("""
+        SELECT l
+        FROM LichLamViecNhanVien l
+        WHERE l.lichLamViec.id = :idLich
+          AND l.xoaMem = false
+          AND l.lichLamViec.xoaMem = false
+        ORDER BY l.id DESC
+    """)
+    List<LichLamViecNhanVien> findAllByLichId(@Param("idLich") Integer idLich);
 
+    @Query("""
+        SELECT COUNT(l) > 0
+        FROM LichLamViecNhanVien l
+        WHERE l.lichLamViec.id = :idLich
+          AND l.nhanVien.id = :idNv
+          AND l.xoaMem = false
+    """)
+    boolean existsByLichLamViecAndNhanVien(@Param("idLich") Integer idLich,
+                                           @Param("idNv") Integer idNv);
 }

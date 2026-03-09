@@ -2,6 +2,7 @@ package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.LichLamViecNhanVienRequest;
 import com.example.datn_sevenstrike.dto.request.LichLamViecRequest;
+import com.example.datn_sevenstrike.dto.response.LichLamViecNhanVienResponse;
 import com.example.datn_sevenstrike.dto.response.LichLamViecResponse;
 import com.example.datn_sevenstrike.entity.CaLam;
 import com.example.datn_sevenstrike.entity.LichLamViec;
@@ -9,12 +10,11 @@ import com.example.datn_sevenstrike.entity.NhanVien;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.CaLamRepository;
+import com.example.datn_sevenstrike.repository.LichLamViecNhanVienRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecRepository;
 import com.example.datn_sevenstrike.repository.NhanVienRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,59 +22,71 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class LichLamViecService {
 
+    private static final int NGUOI_TAO_MAC_DINH = 1;
+
     private final LichLamViecRepository repo;
+    private final LichLamViecNhanVienRepository lichNhanVienRepo;
     private final NhanVienRepository nhanVienRepo;
     private final CaLamRepository caLamRepo;
-    private final ModelMapper mapper;
-
     private final LichLamViecNhanVienService lichLamViecNhanVienService;
+
+    private final DataFormatter dataFormatter = new DataFormatter();
 
     public List<LichLamViecResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public Page<LichLamViecResponse> getpage(int pageNo, int pageSize) {
         int p = Math.max(pageNo, 0);
         int s = Math.max(pageSize, 1);
         var pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "ngayLam"));
-
         return repo.findAllByXoaMemFalse(pageable).map(this::toResponse);
     }
 
     public List<LichLamViecResponse> checkCa(Integer idCa, String ngay) {
-        LocalDate localDate = LocalDate.parse(ngay);
-
-        return repo.findTrungCa(localDate, idCa)
-                .map(this::toResponse)
-                .map(List::of)
-                .orElse(List.of());
+        try {
+            LocalDate localDate = LocalDate.parse(ngay);
+            return repo.findTrungCa(localDate, idCa)
+                    .map(this::toResponse)
+                    .map(List::of)
+                    .orElse(List.of());
+        } catch (Exception e) {
+            throw new BadRequestEx("Ngày không đúng định dạng yyyy-MM-dd");
+        }
     }
 
     @Transactional
     public LichLamViecResponse create(LichLamViecRequest req) {
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo lịch làm việc");
+        }
+        if (req.getIdCaLam() == null) {
+            throw new BadRequestEx("Ca làm không được để trống");
+        }
+        if (req.getNgayLam() == null) {
+            throw new BadRequestEx("Ngày làm không được để trống");
+        }
 
-        CaLam ca = caLamRepo.findById(req.getIdCaLam())
-                .orElseThrow(() ->
-                        new NotFoundEx("Không tìm thấy ca làm"));
+        CaLam ca = caLamRepo.findByIdAndXoaMemFalse(req.getIdCaLam())
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy ca làm"));
 
         if (repo.findTrungCa(req.getNgayLam(), req.getIdCaLam()).isPresent()) {
-            throw new BadRequestEx(
-                    "Ca này đã có lịch vào ngày " + req.getNgayLam()
-            );
+            throw new BadRequestEx("Ca này đã có lịch vào ngày " + req.getNgayLam());
         }
 
         LichLamViec lv = new LichLamViec();
@@ -88,23 +100,18 @@ public class LichLamViecService {
         return toResponse(repo.save(lv));
     }
 
-
     @Transactional
     public LichLamViecResponse update(Integer id, LichLamViecRequest req) {
-
         if (req == null) {
             throw new BadRequestEx("Thiếu dữ liệu cập nhật");
         }
 
         LichLamViec db = repo.findByIdAndXoaMemFalse(id)
-                .orElseThrow(() ->
-                        new NotFoundEx("Không tìm thấy lịch làm việc ID: " + id));
+                .orElseThrow(() -> new NotFoundEx("Không tìm thấy lịch làm việc ID: " + id));
 
         if (req.getIdCaLam() != null) {
-            CaLam ca = caLamRepo.findById(req.getIdCaLam())
-                    .orElseThrow(() ->
-                            new NotFoundEx("Không tìm thấy ca làm ID: " + req.getIdCaLam()));
-
+            CaLam ca = caLamRepo.findByIdAndXoaMemFalse(req.getIdCaLam())
+                    .orElseThrow(() -> new NotFoundEx("Không tìm thấy ca làm ID: " + req.getIdCaLam()));
             db.setIdCaLam(ca);
         }
 
@@ -122,16 +129,14 @@ public class LichLamViecService {
         repo.findTrungCa(ngay, caId)
                 .filter(lv -> !lv.getId().equals(id))
                 .ifPresent(lv -> {
-                    throw new BadRequestEx(
-                            "Ca làm này đã tồn tại lịch vào ngày " + ngay
-                    );
+                    throw new BadRequestEx("Ca làm này đã tồn tại lịch vào ngày " + ngay);
                 });
 
-        db.setNgayCapNhat(java.time.Instant.now());
+        db.setNgayCapNhat(Instant.now());
+        db.setNguoiCapNhat(req.getNguoiTao());
 
         return toResponse(repo.save(db));
     }
-
 
     @Transactional
     public void delete(Integer id) {
@@ -141,222 +146,248 @@ public class LichLamViecService {
         repo.save(db);
     }
 
-
     private LichLamViecResponse toResponse(LichLamViec e) {
-
         return LichLamViecResponse.builder()
                 .id(e.getId())
+                .idCaLam(e.getIdCaLam() != null ? e.getIdCaLam().getId() : null)
+                .tenCa(e.getIdCaLam() != null ? e.getIdCaLam().getTenCa() : null)
+                .gioBatDau(e.getIdCaLam() != null ? e.getIdCaLam().getGioBatDau() : null)
+                .gioKetThuc(e.getIdCaLam() != null ? e.getIdCaLam().getGioKetThuc() : null)
                 .ngayLam(e.getNgayLam())
                 .ghiChu(e.getGhiChu())
                 .xoaMem(e.getXoaMem())
-                .tenCa(e.getIdCaLam().getTenCa())
-                .gioBatDau(e.getIdCaLam().getGioBatDau())
-                .gioKetThuc(e.getIdCaLam().getGioKetThuc())
+                .ngayTao(e.getNgayTao() != null
+                        ? e.getNgayTao().atZone(ZoneId.systemDefault()).toLocalDateTime()
+                        : null)
                 .build();
     }
 
-
     @Transactional
-    public List<LichLamViecResponse> importExcel(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new BadRequestEx("Vui lòng chọn file Excel để upload!");
+    public List<LichLamViecNhanVienResponse> importExcel(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestEx("Vui lòng chọn file Excel để upload");
         }
 
-        List<LichLamViecResponse> resultList = new ArrayList<>();
+        List<ImportRowData> validRows = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        Set<String> duplicateInFile = new HashSet<>();
 
         try (InputStream is = file.getInputStream();
-             Workbook workbook = new XSSFWorkbook(is)) {
+             Workbook workbook = WorkbookFactory.create(is)) {
+
+            if (workbook.getNumberOfSheets() == 0) {
+                throw new BadRequestEx("File Excel không có sheet dữ liệu");
+            }
 
             Sheet sheet = workbook.getSheetAt(0);
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+
             Row headerRow = sheet.getRow(0);
-            if (headerRow == null) throw new BadRequestEx("File Excel không có dòng tiêu đề!");
+            Map<String, Integer> columnMap = parseHeaderRow(headerRow, evaluator);
 
-            Map<String, Integer> columnMap = parseHeaderRow(headerRow);
+            List<NhanVien> allNhanVien = nhanVienRepo.findAllByXoaMemFalseOrderByIdDesc();
+            List<CaLam> allCaLam = caLamRepo.findAllByXoaMemFalseOrderByIdDesc();
 
-            for (Row row : sheet) {
-                if (row.getRowNum() == 0 || isRowEmpty(row)) continue;
+            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                int excelRowNum = rowIndex + 1;
 
-                try {
-                    // 1. Đọc dữ liệu Ca và Ngày
-                    String caLamInput = getSafeString(row.getCell(columnMap.getOrDefault("CA_LAM", 0)));
-                    LocalDate ngayLam = getSafeDate(row.getCell(columnMap.getOrDefault("NGAY_LAM", 1)));
-
-                    // 2. Tìm CaLam
-                    CaLam ca = findCaLamByNameOrId(caLamInput);
-                    if (ca == null) throw new BadRequestEx("Không tìm thấy ca làm: " + caLamInput);
-
-                    // 3. Xử lý LichLamViec (Header của ca trực)
-                    // Kiểm tra xem ngày đó ca đó đã tồn tại chưa
-                    Optional<LichLamViec> existingLich = repo.findTrungCa(ngayLam, ca.getId());
-                    LichLamViecResponse lichRes;
-
-                    if (existingLich.isPresent()) {
-                        // Nếu đã có lịch, lấy lịch đó để gán nhân viên vào
-                        lichRes = toResponse(existingLich.get());
-                    } else {
-                        // Nếu chưa có, tạo mới
-                        LichLamViecRequest request = new LichLamViecRequest();
-                        request.setIdCaLam(ca.getId());
-                        request.setNgayLam(ngayLam);
-                        request.setGhiChu(getSafeString(row.getCell(columnMap.getOrDefault("GHI_CHU", row.getLastCellNum() - 1))));
-                        request.setNguoiTao(1);
-                        lichRes = this.create(request);
-                    }
-                    resultList.add(lichRes);
-
-                    // 4. Đọc danh sách nhân viên từ các cột
-                    List<String> nhanVienList = new ArrayList<>();
-                    int startCol = columnMap.getOrDefault("NHAN_VIEN_START", 2);
-                    for (int colIdx = startCol; colIdx < row.getLastCellNum(); colIdx++) {
-                        String value = getSafeString(row.getCell(colIdx));
-                        if (!value.isEmpty() && !value.toLowerCase().matches(".*(ghi chú|note).*")) {
-                            for (String name : value.split("[,;]")) {
-                                if (!name.trim().isEmpty()) nhanVienList.add(name.trim());
-                            }
-                        }
-                    }
-
-                    // 5. Gán nhân viên vào lịch vừa tìm/tạo được
-                    for (String nhanVienName : nhanVienList) {
-                        try {
-                            NhanVien nv = findNhanVienByNameOrCode(nhanVienName);
-                            if (nv != null) {
-                                // Tạo request gán nhân viên
-                                LichLamViecNhanVienRequest assignReq = new LichLamViecNhanVienRequest();
-                                assignReq.setIdLichLamViec(lichRes.getId());
-                                assignReq.setIdNhanVien(nv.getId());
-                                assignReq.setNguoiTao(1);
-
-                                // Gọi sang service NhanVien để lưu bản ghi phân công
-                                // Hàm create của LichLamViecNhanVienService đã có logic check trùng
-                                lichLamViecNhanVienService.create(assignReq);
-                            }
-                        } catch (BadRequestEx ex) {
-                            // Nếu nhân viên đã được gán rồi (trùng), log lại và bỏ qua dòng này
-                            System.out.println("Bỏ qua: " + nhanVienName + " đã có trong lịch.");
-                        } catch (Exception e) {
-                            System.err.println("Lỗi gán nhân viên " + nhanVienName + ": " + e.getMessage());
-                        }
-                    }
-
-                } catch (Exception e) {
-                    throw new BadRequestEx("Lỗi tại dòng " + (row.getRowNum() + 1) + ": " + e.getMessage());
+                if (isDataRowEmpty(row, columnMap, evaluator)) {
+                    continue;
                 }
+
+                String maNhanVien = getCellString(row, columnMap, "MA_NHAN_VIEN", evaluator);
+                String tenNhanVienInput = getCellString(row, columnMap, "TEN_NHAN_VIEN", evaluator);
+                String tenCa = getCellString(row, columnMap, "TEN_CA", evaluator);
+                String ghiChu = getCellString(row, columnMap, "GHI_CHU", evaluator);
+
+                if (maNhanVien.isBlank()) {
+                    errors.add("Dòng " + excelRowNum + ": Mã Nhân Viên không được để trống");
+                    continue;
+                }
+
+                if (tenCa.isBlank()) {
+                    errors.add("Dòng " + excelRowNum + ": Ca Làm không được để trống");
+                    continue;
+                }
+
+                LocalDate ngayLam;
+                try {
+                    ngayLam = getCellDate(row, columnMap, "NGAY_LAM", evaluator);
+                } catch (BadRequestEx ex) {
+                    errors.add("Dòng " + excelRowNum + ": " + ex.getMessage());
+                    continue;
+                }
+
+                NhanVien nhanVien = findNhanVienByMa(allNhanVien, maNhanVien);
+                if (nhanVien == null) {
+                    errors.add("Dòng " + excelRowNum + ": Mã Nhân Viên \"" + maNhanVien + "\" không tồn tại");
+                    continue;
+                }
+
+                if (Integer.valueOf(1).equals(nhanVien.getIdQuyenHan())) {
+                    errors.add("Dòng " + excelRowNum + ": Nhân viên \"" + maNhanVien + "\" là tài khoản ADMIN, không được import");
+                    continue;
+                }
+
+                CaLam caLam = findCaLamByTen(allCaLam, tenCa);
+                if (caLam == null) {
+                    errors.add("Dòng " + excelRowNum + ": Ca Làm \"" + tenCa + "\" không tồn tại");
+                    continue;
+                }
+
+                String duplicateKey = nhanVien.getId() + "|" + caLam.getId() + "|" + ngayLam;
+                if (duplicateInFile.contains(duplicateKey)) {
+                    continue;
+                }
+                duplicateInFile.add(duplicateKey);
+
+                validRows.add(new ImportRowData(
+                        excelRowNum,
+                        nhanVien,
+                        tenNhanVienInput,
+                        caLam,
+                        ngayLam,
+                        ghiChu
+                ));
             }
-        } catch (IOException e) {
+
+        } catch (BadRequestEx e) {
+            throw e;
+        } catch (Exception e) {
             throw new BadRequestEx("Lỗi khi đọc file Excel: " + e.getMessage());
         }
 
-        return resultList;
+        if (!errors.isEmpty()) {
+            throw new BadRequestEx(String.join("\n", errors));
+        }
+
+        List<LichLamViecNhanVienResponse> result = new ArrayList<>();
+
+        for (ImportRowData row : validRows) {
+            LichLamViec lichLamViec = findOrCreateLich(
+                    row.getCaLam(),
+                    row.getNgayLam(),
+                    row.getGhiChu()
+            );
+
+            boolean daTonTaiPhanCong = lichNhanVienRepo.existsByLichLamViecAndNhanVien(
+                    lichLamViec.getId(),
+                    row.getNhanVien().getId()
+            );
+
+            if (daTonTaiPhanCong) {
+                continue;
+            }
+
+            LichLamViecNhanVienRequest req = new LichLamViecNhanVienRequest();
+            req.setIdLichLamViec(lichLamViec.getId());
+            req.setIdNhanVien(row.getNhanVien().getId());
+            req.setNguoiTao(NGUOI_TAO_MAC_DINH);
+
+            LichLamViecNhanVienResponse created = lichLamViecNhanVienService.create(req);
+            result.add(created);
+        }
+
+        return result;
     }
 
-    private Map<String, Integer> parseHeaderRow(Row headerRow) {
-        Map<String, Integer> columnMap = new HashMap<>();
+    private LichLamViec findOrCreateLich(CaLam caLam, LocalDate ngayLam, String ghiChu) {
+        return repo.findTrungCa(ngayLam, caLam.getId())
+                .orElseGet(() -> {
+                    LichLamViec entity = new LichLamViec();
+                    entity.setIdCaLam(caLam);
+                    entity.setNgayLam(ngayLam);
+                    entity.setGhiChu(ghiChu);
+                    entity.setXoaMem(false);
+                    entity.setNgayTao(Instant.now());
+                    entity.setNguoiTao(NGUOI_TAO_MAC_DINH);
+                    return repo.save(entity);
+                });
+    }
 
-        for (int colIdx = 0; colIdx < headerRow.getLastCellNum(); colIdx++) {
-            Cell cell = headerRow.getCell(colIdx);
-            if (cell != null && cell.getCellType() == CellType.STRING) {
-                String headerText = cell.getStringCellValue().trim().toUpperCase();
+    private Map<String, Integer> parseHeaderRow(Row headerRow, FormulaEvaluator evaluator) {
+        if (headerRow == null) {
+            throw new BadRequestEx("File Excel không có dòng tiêu đề");
+        }
 
-                if (headerText.contains("CA")) {
-                    columnMap.put("CA_LAM", colIdx);
-                } else if (headerText.contains("NGÀY") || headerText.contains("NGAY")) {
-                    columnMap.put("NGAY_LAM", colIdx);
-                } else if (headerText.contains("NHÂN") || headerText.contains("NHAN")) {
-                    if (!columnMap.containsKey("NHAN_VIEN_START")) {
-                        columnMap.put("NHAN_VIEN_START", colIdx);
-                    }
-                } else if (headerText.contains("GHI") || headerText.contains("NOTE")) {
-                    columnMap.put("GHI_CHU", colIdx);
-                }
+        Map<String, Integer> map = new HashMap<>();
+
+        for (int col = 0; col < headerRow.getLastCellNum(); col++) {
+            Cell cell = headerRow.getCell(col);
+            String rawHeader = getCellString(cell, evaluator);
+            String key = normalizeText(rawHeader);
+
+            if (key.equals("manhanvien") || key.equals("manv")) {
+                map.put("MA_NHAN_VIEN", col);
+            } else if (key.equals("tennhanvien") || key.equals("tennv") || key.equals("nhanvien")) {
+                map.put("TEN_NHAN_VIEN", col);
+            } else if (key.equals("calam") || key.equals("tenca") || key.equals("ca")) {
+                map.put("TEN_CA", col);
+            } else if (key.equals("ngaylam") || key.equals("ngay")) {
+                map.put("NGAY_LAM", col);
+            } else if (key.equals("ghichu") || key.equals("note")) {
+                map.put("GHI_CHU", col);
             }
         }
 
-        return columnMap;
+        List<String> missing = new ArrayList<>();
+        if (!map.containsKey("MA_NHAN_VIEN")) missing.add("Mã Nhân Viên");
+        if (!map.containsKey("TEN_NHAN_VIEN")) missing.add("Tên Nhân Viên");
+        if (!map.containsKey("TEN_CA")) missing.add("Ca Làm");
+        if (!map.containsKey("NGAY_LAM")) missing.add("Ngày Làm");
+
+        if (!missing.isEmpty()) {
+            throw new BadRequestEx("Thiếu cột bắt buộc trong file Excel: " + String.join(", ", missing));
+        }
+
+        return map;
     }
 
-    private CaLam findCaLamByNameOrId(String input) {
-        if (input.isEmpty()) return null;
-
-        // Try to parse as ID
-        try {
-            Integer id = Integer.parseInt(input.trim());
-            return caLamRepo.findById(id).orElse(null);
-        } catch (NumberFormatException e) {
-            // Not a number, search by name
+    private boolean isDataRowEmpty(Row row, Map<String, Integer> columnMap, FormulaEvaluator evaluator) {
+        if (row == null) {
+            return true;
         }
 
-        // Search by name (contains)
-        List<CaLam> allCa = caLamRepo.findAll();
-        String searchTerm = input.toLowerCase().trim();
+        String maNhanVien = getCellString(row, columnMap, "MA_NHAN_VIEN", evaluator);
+        String tenNhanVien = getCellString(row, columnMap, "TEN_NHAN_VIEN", evaluator);
+        String tenCa = getCellString(row, columnMap, "TEN_CA", evaluator);
+        String ngayLam = getCellString(row, columnMap, "NGAY_LAM", evaluator);
+        String ghiChu = getCellString(row, columnMap, "GHI_CHU", evaluator);
 
-        for (CaLam ca : allCa) {
-            if (ca.getTenCa().toLowerCase().contains(searchTerm)) {
-                return ca;
-            }
-        }
-
-        return null;
+        return maNhanVien.isBlank()
+                && tenNhanVien.isBlank()
+                && tenCa.isBlank()
+                && ngayLam.isBlank()
+                && ghiChu.isBlank();
     }
 
-    private NhanVien findNhanVienByNameOrCode(String input) {
-        if (input.isEmpty()) return null;
-
-        // Try to parse as ID
-        try {
-            Integer id = Integer.parseInt(input.trim());
-            return nhanVienRepo.findById(id).orElse(null);
-        } catch (NumberFormatException e) {
-            // Not a number, search by name or code
+    private String getCellString(Row row, Map<String, Integer> columnMap, String key, FormulaEvaluator evaluator) {
+        Integer colIndex = columnMap.get(key);
+        if (colIndex == null || row == null) {
+            return "";
         }
-
-        // Search by name or code
-        List<NhanVien> allNv = nhanVienRepo.findAll();
-        String searchTerm = input.toLowerCase().trim();
-
-        for (NhanVien nv : allNv) {
-            if (nv.getTenNhanVien().toLowerCase().contains(searchTerm) ||
-                    (nv.getMaNhanVien() != null && nv.getMaNhanVien().toLowerCase().contains(searchTerm))) {
-                return nv;
-            }
-        }
-
-        return null;
+        return getCellString(row.getCell(colIndex), evaluator);
     }
 
-    // --- CÁC HÀM BỔ TRỢ (HELPER METHODS) ---
-
-    // Kiểm tra xem dòng có trống trơn không
-    private boolean isRowEmpty(Row row) {
-        if (row == null) return true;
-        for (int c = row.getFirstCellNum(); c < row.getLastCellNum(); c++) {
-            Cell cell = row.getCell(c);
-            if (cell != null && cell.getCellType() != CellType.BLANK)
-                return false;
+    private String getCellString(Cell cell, FormulaEvaluator evaluator) {
+        if (cell == null) {
+            return "";
         }
-        return true;
+        return dataFormatter.formatCellValue(cell, evaluator).trim();
     }
 
-    // Lấy số nguyên an toàn
-    private Integer getSafeInt(Cell cell, String fieldName) {
-        if (cell == null || cell.getCellType() == CellType.BLANK) {
-            throw new BadRequestEx(fieldName + " không được để trống");
+    private LocalDate getCellDate(Row row, Map<String, Integer> columnMap, String key, FormulaEvaluator evaluator) {
+        Integer colIndex = columnMap.get(key);
+        if (colIndex == null || row == null) {
+            throw new BadRequestEx("Không tìm thấy cột Ngày Làm");
         }
-        if (cell.getCellType() == CellType.NUMERIC) {
-            return (int) cell.getNumericCellValue();
-        } else if (cell.getCellType() == CellType.STRING) {
-            try {
-                return Integer.parseInt(cell.getStringCellValue().trim());
-            } catch (NumberFormatException e) {
-                throw new BadRequestEx(fieldName + " phải là số");
-            }
-        }
-        throw new BadRequestEx(fieldName + " định dạng không hợp lệ");
+        return getCellDate(row.getCell(colIndex), evaluator);
     }
 
-    private LocalDate getSafeDate(Cell cell) {
-        if (cell == null || cell.getCellType() == CellType.BLANK) {
-            throw new BadRequestEx("Ngày làm không được để trống");
+    private LocalDate getCellDate(Cell cell, FormulaEvaluator evaluator) {
+        if (cell == null) {
+            throw new BadRequestEx("Ngày Làm không được để trống");
         }
 
         try {
@@ -364,42 +395,117 @@ public class LichLamViecService {
                 return cell.getLocalDateTimeCellValue().toLocalDate();
             }
 
-            if (cell.getCellType() == CellType.STRING) {
-                String dateStr = cell.getStringCellValue().trim();
-                if (dateStr.isEmpty()) throw new BadRequestEx("Ngày làm trống");
-
-                dateStr = dateStr.replace("/", "-");
-
-                if (dateStr.matches("\\d{4}-\\d{2}-\\d{2}")) {
-                    return LocalDate.parse(dateStr);
-                }
-
-                java.time.format.DateTimeFormatter formatter =
-                        java.time.format.DateTimeFormatter.ofPattern("d-M-yyyy");
-                return LocalDate.parse(dateStr, formatter);
+            String raw = getCellString(cell, evaluator);
+            if (raw.isBlank()) {
+                throw new BadRequestEx("Ngày Làm không được để trống");
             }
 
-            if (cell.getCellType() == CellType.NUMERIC) {
-                return DateUtil.getJavaDate(cell.getNumericCellValue())
-                        .toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            String normalized = raw.trim().replace("/", "-");
+
+            if (normalized.matches("\\d{4}-\\d{1,2}-\\d{1,2}")) {
+                return LocalDate.parse(normalized, DateTimeFormatter.ofPattern("yyyy-M-d"));
             }
+
+            if (normalized.matches("\\d{1,2}-\\d{1,2}-\\d{4}")) {
+                return LocalDate.parse(normalized, DateTimeFormatter.ofPattern("d-M-yyyy"));
+            }
+
+            if (normalized.matches("\\d+(\\.\\d+)?")) {
+                double excelDate = Double.parseDouble(normalized);
+                return DateUtil.getJavaDate(excelDate)
+                        .toInstant()
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate();
+            }
+
+        } catch (BadRequestEx e) {
+            throw e;
         } catch (Exception e) {
-            throw new BadRequestEx("Ngày làm tại ô " + cell.getAddress() + " không hợp lệ: " + cell);
+            throw new BadRequestEx("Ngày Làm không đúng định dạng (YYYY-MM-DD hoặc DD/MM/YYYY)");
         }
-        throw new BadRequestEx("Định dạng ngày không được hỗ trợ");
+
+        throw new BadRequestEx("Ngày Làm không đúng định dạng (YYYY-MM-DD hoặc DD/MM/YYYY)");
     }
 
-    // Lấy chuỗi an toàn (trả về rỗng nếu null)
-    private String getSafeString(Cell cell) {
-        if (cell == null || cell.getCellType() == CellType.BLANK) {
+    private NhanVien findNhanVienByMa(List<NhanVien> allNhanVien, String maNhanVien) {
+        String target = normalizeText(maNhanVien);
+        for (NhanVien nv : allNhanVien) {
+            if (normalizeText(nv.getMaNhanVien()).equals(target)) {
+                return nv;
+            }
+        }
+        return null;
+    }
+
+    private CaLam findCaLamByTen(List<CaLam> allCaLam, String tenCa) {
+        String target = normalizeText(tenCa);
+        for (CaLam ca : allCaLam) {
+            if (normalizeText(ca.getTenCa()).equals(target)) {
+                return ca;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
             return "";
         }
-        if (cell.getCellType() == CellType.STRING) {
-            return cell.getStringCellValue().trim();
+
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replace("đ", "d")
+                .replace("Đ", "D");
+
+        return normalized
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]", "");
+    }
+
+    private static class ImportRowData {
+        private final int rowNum;
+        private final NhanVien nhanVien;
+        private final String tenNhanVienInput;
+        private final CaLam caLam;
+        private final LocalDate ngayLam;
+        private final String ghiChu;
+
+        public ImportRowData(int rowNum,
+                             NhanVien nhanVien,
+                             String tenNhanVienInput,
+                             CaLam caLam,
+                             LocalDate ngayLam,
+                             String ghiChu) {
+            this.rowNum = rowNum;
+            this.nhanVien = nhanVien;
+            this.tenNhanVienInput = tenNhanVienInput;
+            this.caLam = caLam;
+            this.ngayLam = ngayLam;
+            this.ghiChu = ghiChu;
         }
-        if (cell.getCellType() == CellType.NUMERIC) {
-            return String.valueOf((long) cell.getNumericCellValue());
+
+        public int getRowNum() {
+            return rowNum;
         }
-        return "";
+
+        public NhanVien getNhanVien() {
+            return nhanVien;
+        }
+
+        public String getTenNhanVienInput() {
+            return tenNhanVienInput;
+        }
+
+        public CaLam getCaLam() {
+            return caLam;
+        }
+
+        public LocalDate getNgayLam() {
+            return ngayLam;
+        }
+
+        public String getGhiChu() {
+            return ghiChu;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.datn_sevenstrike.controller;
 
 import com.example.datn_sevenstrike.dto.request.LichLamViecRequest;
+import com.example.datn_sevenstrike.dto.response.LichLamViecNhanVienResponse;
 import com.example.datn_sevenstrike.dto.response.LichLamViecResponse;
 import com.example.datn_sevenstrike.service.LichLamViecService;
 import jakarta.validation.Valid;
@@ -45,7 +46,8 @@ public class LichLamViecController {
     }
 
     @PutMapping("/{id:\\d+}")
-    public LichLamViecResponse update(@PathVariable("id") Integer id, @Valid @RequestBody LichLamViecRequest req) {
+    public LichLamViecResponse update(@PathVariable("id") Integer id,
+                                      @Valid @RequestBody LichLamViecRequest req) {
         return service.update(id, req);
     }
 
@@ -55,13 +57,7 @@ public class LichLamViecController {
     }
 
     @PostMapping("/import-excel")
-    public List<LichLamViecResponse> importExcel(@RequestParam("file") MultipartFile file) {
-        try {
-            // Service sẽ trả về danh sách các bản ghi vừa thêm
-            return service.importExcel(file);
-        } catch (Exception e) {
-            // Ném lỗi Runtime để Spring Boot tự trả về lỗi 500 hoặc 400
-            throw new RuntimeException("Lỗi đọc file Excel: " + e.getMessage());
-        }
+    public List<LichLamViecNhanVienResponse> importExcel(@RequestParam("file") MultipartFile file) {
+        return service.importExcel(file);
     }
 }

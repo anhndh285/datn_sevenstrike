@@ -20,8 +20,14 @@ public class LichLamViecNhanVienController {
     private final LichLamViecNhanVienService service;
 
     @GetMapping("/nhan-vien/{idNhanVien}")
-    public List<LichLamViecNhanVienResponse> one(@PathVariable Integer idNhanVien, @RequestParam LocalDate ngayLam) {
+    public List<LichLamViecNhanVienResponse> one(@PathVariable Integer idNhanVien,
+                                                 @RequestParam LocalDate ngayLam) {
         return service.getByNhanVien(idNhanVien, ngayLam);
+    }
+
+    @GetMapping("/lich/{idLich}")
+    public List<LichLamViecNhanVienResponse> getByLich(@PathVariable Integer idLich) {
+        return service.getByLich(idLich);
     }
 
     @GetMapping
