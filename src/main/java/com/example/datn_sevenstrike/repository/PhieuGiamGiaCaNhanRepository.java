@@ -72,6 +72,17 @@ public interface PhieuGiamGiaCaNhanRepository extends JpaRepository<PhieuGiamGia
     """)
     int markUsedNeuHopLe(@Param("id") Integer id, @Param("khachHangId") Integer khachHangId);
 
+    // Hoàn lại voucher cá nhân khi hủy đơn
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update PhieuGiamGiaCaNhan x
+           set x.daSuDung = false
+         where x.id = :id
+           and x.xoaMem = false
+           and x.daSuDung = true
+    """)
+    int unmarkUsed(@Param("id") Integer id);
+
     // ✅ FE: lấy danh sách KH đã gửi mail theo voucher
     @Query("""
         select x.idKhachHang

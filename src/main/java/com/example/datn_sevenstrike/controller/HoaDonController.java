@@ -5,12 +5,15 @@ import com.example.datn_sevenstrike.dto.request.HoaDonChiTietRequest;
 import com.example.datn_sevenstrike.dto.request.HoaDonRequest;
 import com.example.datn_sevenstrike.dto.request.XacNhanThanhToanTaiQuayRequest;
 import com.example.datn_sevenstrike.dto.response.HoaDonResponse;
+import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.service.HoaDonService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,7 +35,6 @@ public class HoaDonController {
     private Integer parseNhanVienIdRaw(String raw) {
         if (raw == null || raw.isBlank()) return null;
 
-        // ✅ robust: "2" / " 2 " / "NV00002" đều ra 2
         String digits = raw.replaceAll("\\D", "");
         if (digits.isBlank()) return null;
 
@@ -117,7 +119,6 @@ public class HoaDonController {
     private Integer timSoTrongJson(String json, String key) {
         if (json == null || json.isBlank() || key == null || key.isBlank()) return null;
 
-        // "idNhanVien": 2 | "idNhanVien":"2" | "idNhanVien":"NV00002"
         String regex = "\"" + Pattern.quote(key) + "\"\\s*:\\s*\"?([^\",}\\s]+)\"?";
         Matcher m = Pattern.compile(regex).matcher(json);
         if (!m.find()) return null;
@@ -128,7 +129,6 @@ public class HoaDonController {
     private String timChuoiTrongJson(String json, String key) {
         if (json == null || json.isBlank() || key == null || key.isBlank()) return null;
 
-        // "username":"admin"
         String regex = "\"" + Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"";
         Matcher m = Pattern.compile(regex).matcher(json);
         if (!m.find()) return null;
@@ -137,8 +137,29 @@ public class HoaDonController {
         return (v == null) ? null : v.trim();
     }
 
+    private List<String> timDanhSachChuoiTrongJson(String json, String key) {
+        List<String> out = new ArrayList<>();
+        if (json == null || json.isBlank() || key == null || key.isBlank()) return out;
+
+        String regex = "\"" + Pattern.quote(key) + "\"\\s*:\\s*\\[(.*?)\\]";
+        Matcher m = Pattern.compile(regex, Pattern.DOTALL).matcher(json);
+        if (!m.find()) return out;
+
+        String inside = m.group(1);
+        if (inside == null || inside.isBlank()) return out;
+
+        Matcher m2 = Pattern.compile("\"([^\"]+)\"").matcher(inside);
+        while (m2.find()) {
+            String v = m2.group(1);
+            if (v != null && !v.isBlank()) {
+                out.add(v.trim());
+            }
+        }
+
+        return out;
+    }
+
     private String layTenTaiKhoanTuSecurityContext() {
-        // ✅ dùng reflection để KHÔNG phụ thuộc spring-security compile-time
         try {
             Class<?> ctxHolderClz = Class.forName("org.springframework.security.core.context.SecurityContextHolder");
             Object ctx = ctxHolderClz.getMethod("getContext").invoke(null);
@@ -161,7 +182,6 @@ public class HoaDonController {
     private Integer layNhanVienIdTuHeaderCustom(HttpServletRequest request) {
         if (request == null) return null;
 
-        // ✅ ưu tiên id trực tiếp
         String[] keysId = new String[] {
                 "X-Nhan-Vien-Id",
                 "X-NV-ID",
@@ -175,7 +195,6 @@ public class HoaDonController {
             if (id != null) return id;
         }
 
-        // ✅ fallback theo tên tài khoản nếu FE có gửi
         String tk = layHeader(request, "X-Ten-Tai-Khoan");
         if (tk != null && !tk.isBlank()) {
             Integer id = timNhanVienIdTheoTenTaiKhoan(tk);
@@ -192,7 +211,6 @@ public class HoaDonController {
         String json = decodeJwtPayloadJson(token);
         if (json == null || json.isBlank()) return null;
 
-        // 1) cố lấy id dạng số trước
         String[] keyId = new String[] {
                 "idNhanVien",
                 "nhanVienId",
@@ -211,7 +229,6 @@ public class HoaDonController {
             if (id != null) return id;
         }
 
-        // 2) fallback: mã NV
         String[] keyMa = new String[] {
                 "maNhanVien",
                 "ma_nhan_vien",
@@ -224,7 +241,6 @@ public class HoaDonController {
             if (id != null) return id;
         }
 
-        // 3) fallback: username/sub -> query DB để ra id
         String[] keyTk = new String[] {
                 "tenTaiKhoan",
                 "ten_tai_khoan",
@@ -246,15 +262,12 @@ public class HoaDonController {
     }
 
     private Integer layNhanVienIdTuRequest(HttpServletRequest request) {
-        // 1) header custom
         Integer id = layNhanVienIdTuHeaderCustom(request);
         if (id != null) return id;
 
-        // 2) jwt Authorization
         id = layNhanVienIdTuJwt(request);
         if (id != null) return id;
 
-        // 3) security context -> query DB theo username
         String tk = layTenTaiKhoanTuSecurityContext();
         if (tk != null && !tk.isBlank()) {
             id = timNhanVienIdTheoTenTaiKhoan(tk);
@@ -262,6 +275,159 @@ public class HoaDonController {
         }
 
         return null;
+    }
+
+    // =========================
+    // ===== CHECK ADMIN =======
+    // =========================
+
+    private String normalizeRole(String role) {
+        String r = String.valueOf(role == null ? "" : role).trim().toUpperCase();
+        r = r.replace("ROLE_", "");
+        r = r.replace("-", "_");
+        r = r.replace(' ', '_');
+        while (r.contains("__")) {
+            r = r.replace("__", "_");
+        }
+        return r;
+    }
+
+    private boolean laAdminRole(String role) {
+        String r = normalizeRole(role);
+        return "ADMIN".equals(r)
+                || "QUAN_LY".equals(r)
+                || "QUANLY".equals(r)
+                || "MANAGER".equals(r)
+                || "ADMINISTRATOR".equals(r)
+                || "SUPER_ADMIN".equals(r)
+                || "SUPERADMIN".equals(r);
+    }
+
+    private Boolean coQuyenAdminTuHeaderRole(HttpServletRequest request) {
+        if (request == null) return null;
+
+        String[] keys = new String[] {
+                "X-User-Role",
+                "X-Role",
+                "X-Vai-Tro",
+                "X-Quyen-Han"
+        };
+
+        for (String k : keys) {
+            String v = layHeader(request, k);
+            if (v != null && !v.isBlank()) {
+                return laAdminRole(v);
+            }
+        }
+
+        return null;
+    }
+
+    private Boolean coQuyenAdminTuJwt(HttpServletRequest request) {
+        String token = layBearerToken(request);
+        if (token == null) return null;
+
+        String json = decodeJwtPayloadJson(token);
+        if (json == null || json.isBlank()) return null;
+
+        String[] roleKeys = new String[] {
+                "role",
+                "vaiTro",
+                "tenVaiTro",
+                "tenQuyenHan",
+                "authority",
+                "quyenHan"
+        };
+
+        for (String k : roleKeys) {
+            String v = timChuoiTrongJson(json, k);
+            if (v != null && !v.isBlank()) {
+                return laAdminRole(v);
+            }
+        }
+
+        String[] arrayRoleKeys = new String[] {
+                "roles",
+                "authorities",
+                "permissions",
+                "grantedAuthorities"
+        };
+
+        for (String k : arrayRoleKeys) {
+            List<String> values = timDanhSachChuoiTrongJson(json, k);
+            for (String v : values) {
+                if (laAdminRole(v)) {
+                    return true;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Boolean coQuyenAdminTuSecurityContext() {
+        try {
+            Class<?> ctxHolderClz = Class.forName("org.springframework.security.core.context.SecurityContextHolder");
+            Object ctx = ctxHolderClz.getMethod("getContext").invoke(null);
+            if (ctx == null) return null;
+
+            Object auth = ctx.getClass().getMethod("getAuthentication").invoke(ctx);
+            if (auth == null) return null;
+
+            Object authoritiesObj = auth.getClass().getMethod("getAuthorities").invoke(auth);
+            if (!(authoritiesObj instanceof Collection<?>)) {
+                return null;
+            }
+
+            Collection<?> authorities = (Collection<?>) authoritiesObj;
+            if (authorities.isEmpty()) {
+                return null;
+            }
+
+            for (Object authority : authorities) {
+                String value;
+                try {
+                    Object x = authority.getClass().getMethod("getAuthority").invoke(authority);
+                    value = x == null ? "" : String.valueOf(x);
+                } catch (Exception e) {
+                    value = String.valueOf(authority);
+                }
+
+                if (laAdminRole(value)) return true;
+            }
+
+            return false;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void yeuCauQuyenAdmin(HttpServletRequest request) {
+        String authHeader = layHeader(request, "Authorization");
+        String roleHeader = layHeader(request, "X-User-Role");
+        String roleHeader2 = layHeader(request, "X-Role");
+        String token = layBearerToken(request);
+        String payload = decodeJwtPayloadJson(token);
+
+        Boolean byHeaderRole = coQuyenAdminTuHeaderRole(request);
+        Boolean byJwt = coQuyenAdminTuJwt(request);
+        Boolean bySecurity = coQuyenAdminTuSecurityContext();
+
+        System.out.println("=== CHECK ADMIN HOA DON ===");
+        System.out.println("Authorization header = " + authHeader);
+        System.out.println("X-User-Role = " + roleHeader);
+        System.out.println("X-Role = " + roleHeader2);
+        System.out.println("JWT payload = " + payload);
+        System.out.println("byHeaderRole = " + byHeaderRole);
+        System.out.println("byJwt = " + byJwt);
+        System.out.println("bySecurity = " + bySecurity);
+        System.out.println("===========================");
+
+        if (Boolean.TRUE.equals(byHeaderRole) || Boolean.TRUE.equals(byJwt) || Boolean.TRUE.equals(bySecurity)) {
+            return;
+        }
+
+        throw new BadRequestEx("Chỉ Admin/Quản lý mới được thực hiện thao tác này");
     }
 
     // =========================================================
@@ -354,7 +520,6 @@ public class HoaDonController {
         return service.confirmTaiQuayKetHop(id, body, nguoiCapNhat);
     }
 
-    // ✅ NEW: xác nhận thanh toán cho đơn giao hàng/online (tạo giao_dich_thanh_toan để FE hiển thị lịch sử thanh toán)
     @PutMapping("/{id}/confirm-giao-hang-ket-hop")
     public HoaDonResponse confirmGiaoHangKetHop(
             HttpServletRequest request,
@@ -374,8 +539,73 @@ public class HoaDonController {
         if (body == null) body = new ChangeStatusBody();
 
         Integer nguoiCapNhat = layNhanVienIdTuRequest(request);
-
         return service.changeStatus(id, body.getTrangThai(), body.getGhiChu(), nguoiCapNhat);
+    }
+
+    // =========================
+    // ===== API gộp từ Duy ====
+    // =========================
+
+    @PostMapping("/{id}/xac-nhan-huy-theo-yeu-cau")
+    public HoaDonResponse xacNhanHuyTheoYeuCau(
+            HttpServletRequest request,
+            @PathVariable Integer id,
+            @RequestBody(required = false) HuyDonBody body
+    ) {
+        yeuCauQuyenAdmin(request);
+
+        Integer nhanVienId = layNhanVienIdTuRequest(request);
+        String lyDo = body == null ? null : body.getLyDo();
+        return service.adminConfirmCancel(id, nhanVienId, lyDo);
+    }
+
+    @PostMapping("/{id}/tu-choi-huy")
+    public HoaDonResponse tuChoiHuy(
+            HttpServletRequest request,
+            @PathVariable Integer id,
+            @RequestBody(required = false) HuyDonBody body
+    ) {
+        yeuCauQuyenAdmin(request);
+
+        Integer nhanVienId = layNhanVienIdTuRequest(request);
+        String lyDo = body == null ? null : body.getLyDo();
+        return service.adminRejectCancel(id, nhanVienId, lyDo);
+    }
+
+    @PutMapping("/{id}/thong-tin-giao-hang")
+    public HoaDonResponse updateThongTinGiaoHang(
+            HttpServletRequest request,
+            @PathVariable Integer id,
+            @RequestBody ThongTinGiaoHangBody body
+    ) {
+        Integer nhanVienId = layNhanVienIdTuRequest(request);
+
+        return service.adminUpdateThongTinGiaoHang(
+                id,
+                body.getTenKhachHang(),
+                body.getSoDienThoaiKhachHang(),
+                body.getEmailKhachHang(),
+                body.getDiaChiKhachHang(),
+                nhanVienId
+        );
+    }
+
+    @PostMapping("/{id}/xac-nhan-hoan-phi")
+    public HoaDonResponse xacNhanHoanPhi(
+            HttpServletRequest request,
+            @PathVariable Integer id,
+            @RequestBody(required = false) HoanPhiBody body
+    ) {
+        yeuCauQuyenAdmin(request);
+
+        Integer nhanVienId = layNhanVienIdTuRequest(request);
+        return service.confirmHoanPhi(id, nhanVienId);
+    }
+
+    @GetMapping("/can-hoan-phi")
+    public List<HoaDonResponse> getDonCanHoanPhi(HttpServletRequest request) {
+        yeuCauQuyenAdmin(request);
+        return service.getDonCanHoanPhi();
     }
 
     @DeleteMapping("/{id}/reset")
@@ -398,5 +628,24 @@ public class HoaDonController {
     @Data
     public static class NoteBody {
         private String ghiChu;
+    }
+
+    @Data
+    public static class HuyDonBody {
+        private Integer nhanVienId;
+        private String lyDo;
+    }
+
+    @Data
+    public static class ThongTinGiaoHangBody {
+        private String tenKhachHang;
+        private String soDienThoaiKhachHang;
+        private String emailKhachHang;
+        private String diaChiKhachHang;
+    }
+
+    @Data
+    public static class HoanPhiBody {
+        private Integer nhanVienId;
     }
 }

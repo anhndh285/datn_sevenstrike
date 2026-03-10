@@ -64,7 +64,8 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer> {
                     hd.xoaMem,
                     hd.nguoiTao,
                     hd.ngayCapNhat,
-                    hd.nguoiCapNhat
+                    hd.nguoiCapNhat,
+                    hd.daHoanPhi
                 )
                 FROM HoaDon hd
                 LEFT JOIN NhanVien nv ON hd.idNhanVien = nv.id
@@ -107,7 +108,8 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer> {
             hd.xoaMem,
             hd.nguoiTao,
             hd.ngayCapNhat,
-            hd.nguoiCapNhat
+            hd.nguoiCapNhat,
+            hd.daHoanPhi
         )
         FROM HoaDon hd
         LEFT JOIN NhanVien nv ON hd.idNhanVien = nv.id
@@ -144,7 +146,8 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer> {
             hd.xoaMem,
             hd.nguoiTao,
             hd.ngayCapNhat,
-            hd.nguoiCapNhat
+            hd.nguoiCapNhat,
+            hd.daHoanPhi
         )
         FROM HoaDon hd
         LEFT JOIN NhanVien nv ON hd.idNhanVien = nv.id
@@ -168,6 +171,9 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer> {
             @Param("trangThai") Integer trangThai,
             @Param("cutoff") LocalDateTime cutoff
     );
+
+    // ✅ Lấy danh sách đơn cần hoàn phí (daHoanPhi = false)
+    List<HoaDon> findAllByDaHoanPhiFalseAndXoaMemFalseOrderByIdDesc();
 
     // ✅ Reset = xóa cứng hóa đơn (service đã xóa gdtt/hdct/lshd trước)
     @Modifying(clearAutomatically = true, flushAutomatically = true)

@@ -21,13 +21,13 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, In
 
     List<HoaDonChiTiet> findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(Integer idHoaDon);
 
-    // (Tuỳ nhu cầu) Lấy tất cả chi tiết theo hóa đơn, gồm cả đã xóa mềm (ít dùng, tránh dùng nhầm)
+    // (Tuỳ nhu cầu) Lấy tất cả chi tiết theo hóa đơn, gồm cả đã xóa mềm
     List<HoaDonChiTiet> findAllByIdHoaDonOrderByIdAsc(Integer idHoaDon);
 
-    // Lấy chi tiết theo hóa đơn (không filter xóa mềm) - theo file Duy
+    // Lấy chi tiết theo hóa đơn (không filter xóa mềm)
     List<HoaDonChiTiet> findByIdHoaDon(Integer idHoaDon);
 
-    // Lấy chi tiết theo hóa đơn + join sản phẩm (để load kèm thông tin sản phẩm) - theo file Duy
+    // Lấy chi tiết theo hóa đơn + join sản phẩm
     @Query(value = """
         select hdct.*
           from dbo.hoa_don_chi_tiet hdct
@@ -43,12 +43,14 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, In
         """, nativeQuery = true)
     List<HoaDonChiTiet> findAllWithProductByIdHoaDon(@Param("idHoaDon") Integer idHoaDon);
 
-    // Trả về idSanPham bán chạy nhất trong tháng hiện tại (đơn hoàn thành - trạng thái 5) - theo file Duy
+    // Trả về idSanPham bán chạy nhất trong tháng hiện tại (đơn hoàn thành - trạng thái 5)
     @Query(value = """
         select ctsp.id_san_pham
           from dbo.hoa_don_chi_tiet hdct
-          join dbo.hoa_don hd on hd.id = hdct.id_hoa_don
-          join dbo.chi_tiet_san_pham ctsp on ctsp.id = hdct.id_chi_tiet_san_pham
+          join dbo.hoa_don hd
+            on hd.id = hdct.id_hoa_don
+          join dbo.chi_tiet_san_pham ctsp
+            on ctsp.id = hdct.id_chi_tiet_san_pham
          where hd.trang_thai_hien_tai = 5
            and hd.xoa_mem = 0
            and hdct.xoa_mem = 0
@@ -58,6 +60,32 @@ public interface HoaDonChiTietRepository extends JpaRepository<HoaDonChiTiet, In
          order by sum(hdct.so_luong) desc
         """, nativeQuery = true)
     List<Integer> findBestSellingProductIds(@Param("thangNay") LocalDateTime thangNay, Pageable pageable);
+
+    /**
+     * Tìm ID các đơn online (loai_don=2) đang CHỜ XÁC NHẬN (trang_thai=1)
+     * có chứa CTSP này, dùng để auto-cancel khi POS vừa làm giảm tồn.
+     *
+     * excludeHoaDonId:
+     * - truyền id hóa đơn hiện tại để tránh tự quét lại chính nó
+     * - có thể null, khi null thì không loại trừ đơn nào
+     */
+    @Query(value = """
+        select distinct hd.id
+          from dbo.hoa_don hd
+          join dbo.hoa_don_chi_tiet hdct
+            on hdct.id_hoa_don = hd.id
+           and hdct.xoa_mem = 0
+         where hd.xoa_mem = 0
+           and hd.loai_don = 2
+           and hd.trang_thai_hien_tai = 1
+           and hdct.id_chi_tiet_san_pham = :ctspId
+           and (:excludeHoaDonId is null or hd.id <> :excludeHoaDonId)
+         order by hd.id asc
+        """, nativeQuery = true)
+    List<Integer> findPendingOnlineOrderIdsByCtspId(
+            @Param("ctspId") Integer ctspId,
+            @Param("excludeHoaDonId") Integer excludeHoaDonId
+    );
 
     // Xóa mềm toàn bộ chi tiết theo hóa đơn
     @Modifying(clearAutomatically = true, flushAutomatically = true)

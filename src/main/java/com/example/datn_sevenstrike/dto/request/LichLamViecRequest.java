@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @Setter
 public class LichLamViecRequest {
     private Integer idCaLam;
+
     private LocalDate ngayLam;
     private String ghiChu;
 

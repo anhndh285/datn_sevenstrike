@@ -19,5 +19,9 @@ public class OrderRequest {
     private String diaChi;
     private String ghiChu;
     private Integer idPhieuGiamGia;
+    private Integer loaiThanhToan;          // 0: COD, 1: VNPay/Chuyển khoản
+    private Integer idPhuongThucThanhToan;  // ID trực tiếp nếu FE đã biết
     private List<OrderItemRequest> items;
+    private Integer ghnToDistrictId;        // GHN district ID để tính phí vận chuyển
+    private String ghnToWardCode;           // GHN ward code để tính phí vận chuyển
 }

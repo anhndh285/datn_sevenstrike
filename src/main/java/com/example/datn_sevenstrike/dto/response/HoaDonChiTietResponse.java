@@ -21,6 +21,7 @@ public class HoaDonChiTietResponse {
 
     private Integer soLuong;
     private BigDecimal donGia;
+    private BigDecimal donGiaCu; // giá hiện tại (real-time) để FE so sánh
 
     private BigDecimal thanhTien;
 
@@ -39,4 +40,5 @@ public class HoaDonChiTietResponse {
     private String formChan;
 
     private String duongDanAnhDaiDien;
+    private Integer tonKho; // tồn kho hiện tại của chi_tiet_san_pham
 }

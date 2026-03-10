@@ -45,6 +45,12 @@ public class ChatService {
     public static final String LOAI_KHACH_HANG = "KHACH_HANG";
     public static final String LOAI_NOI_BO = "NOI_BO";
 
+    private static final String NGUOI_GUI_BOT = "BOT";
+    private static final String NGUOI_GUI_KHACH = "KHACH";
+    private static final String NGUOI_GUI_NHAN_VIEN = "NHAN_VIEN";
+    private static final String TEN_BOT = "SevenStrike AI";
+    private static final String ESCALATE_TOKEN = "CHUYEN_NHAN_VIEN";
+
     @Transactional
     public PhienChatDTO khoiTaoPhien(KhoiTaoPhienRequest req) {
         if (req == null) {
@@ -95,26 +101,13 @@ public class ChatService {
         String loiChao = LOAI_NOI_BO.equals(loai)
                 ? "Xin chào " + saved.getTenKhach() + "! Tôi là trợ lý AI nội bộ SevenStrike. "
                 + "Tôi có thể hỗ trợ bạn về quy trình bán hàng, hóa đơn, lịch làm việc và chính sách nội bộ. Bạn cần hỗ trợ gì?"
-                : "Xin chào! Tôi là trợ lý AI của SevenStrike. Tôi có thể giúp bạn về sản phẩm, đơn hàng, và chính sách mua hàng. Bạn cần hỗ trợ gì?";
+                : "Xin chào! Tôi là trợ lý AI của SevenStrike. Tôi có thể giúp bạn về sản phẩm, đơn hàng và chính sách mua hàng. Bạn cần hỗ trợ gì?";
 
-        TinNhan loiChaoTin = TinNhan.builder()
-                .phienChat(saved)
-                .nguoiGui("BOT")
-                .tenNguoiGui("SevenStrike AI")
-                .noiDung(loiChao)
-                .thoiGian(LocalDateTime.now())
-                .build();
-
-        log.info("[CHAT_SERVICE] Trước saveAndFlush tin_nhan mở đầu cho phienChatId={}", saved.getId());
-
-        tinNhanRepo.saveAndFlush(loiChaoTin);
-
-        log.info("[CHAT_SERVICE] Đã lưu tin nhắn mở đầu cho phienChatId={}", saved.getId());
+        guiTinNhanBot(saved, loiChao);
 
         PhienChatDTO dto = toDTO(saved);
 
         log.info("[CHAT_SERVICE] Khởi tạo phiên thành công - phienChatId={}", dto.getId());
-
         return dto;
     }
 
@@ -123,48 +116,55 @@ public class ChatService {
         PhienChat phien = phienChatRepo.findById(phienChatId)
                 .orElseThrow(() -> new RuntimeException("Phiên chat không tồn tại: " + phienChatId));
 
+        String noiDung = normalizeIncomingMessage(req != null ? req.getNoiDung() : null);
+        String tenNguoiGui = normalizeText(
+                req != null ? req.getTenNguoiGui() : null,
+                normalizeText(phien.getTenKhach(), LOAI_NOI_BO.equals(phien.getLoai()) ? "Nhân viên" : "Khách hàng")
+        );
+
+        if (noiDung.isBlank()) {
+            guiTinNhanBot(phien, "Bạn hãy nhập nội dung cần hỗ trợ nhé 🙂");
+            return;
+        }
+
         TinNhan tinNhanKhach = TinNhan.builder()
                 .phienChat(phien)
-                .nguoiGui("KHACH")
-                .tenNguoiGui(req.getTenNguoiGui() != null ? req.getTenNguoiGui() : phien.getTenKhach())
-                .noiDung(req.getNoiDung())
+                .nguoiGui(NGUOI_GUI_KHACH)
+                .tenNguoiGui(tenNguoiGui)
+                .noiDung(noiDung)
                 .thoiGian(LocalDateTime.now())
                 .build();
         TinNhan savedKhach = tinNhanRepo.save(tinNhanKhach);
 
-        TinNhanDTO khachDTO = toTinNhanDTO(savedKhach);
-        messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, khachDTO);
+        messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(savedKhach));
 
-        if (TRANG_THAI_BOT.equals(phien.getTrangThai())) {
-            boolean isNoiBo = LOAI_NOI_BO.equals(phien.getLoai());
-            String noiDung = req.getNoiDung() != null ? req.getNoiDung().trim() : "";
-
-            boolean isDirectEscalate =
-                    noiDung.contains("Tôi cần gặp Admin") ||
-                            noiDung.contains("Tôi muốn nói chuyện với nhân viên hỗ trợ");
-
-            if (isDirectEscalate) {
-                xuLyEscalate(phien, isNoiBo);
-            } else {
-                String geminiReply = isNoiBo
-                        ? geminiService.hoiGeminiNoiBo(noiDung)
-                        : geminiService.hoiGemini(noiDung);
-
-                if ("CHUYEN_NHAN_VIEN".equals(geminiReply)) {
-                    xuLyEscalate(phien, isNoiBo);
-                } else {
-                    TinNhan botReply = TinNhan.builder()
-                            .phienChat(phien)
-                            .nguoiGui("BOT")
-                            .tenNguoiGui("SevenStrike AI")
-                            .noiDung(geminiReply)
-                            .thoiGian(LocalDateTime.now())
-                            .build();
-                    TinNhan savedBot = tinNhanRepo.save(botReply);
-                    messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(savedBot));
-                }
-            }
+        if (!TRANG_THAI_BOT.equals(phien.getTrangThai())) {
+            return;
         }
+
+        boolean isNoiBo = LOAI_NOI_BO.equals(phien.getLoai());
+
+        if (isDirectEscalateRequest(noiDung)) {
+            xuLyEscalate(phien, isNoiBo);
+            return;
+        }
+
+        String geminiReply = isNoiBo
+                ? geminiService.hoiGeminiNoiBo(noiDung)
+                : geminiService.hoiGemini(noiDung);
+
+        if (geminiReply == null || geminiReply.isBlank()) {
+            geminiReply = buildSafeFallback(isNoiBo);
+        }
+
+        geminiReply = geminiReply.trim();
+
+        if (ESCALATE_TOKEN.equalsIgnoreCase(geminiReply)) {
+            xuLyEscalate(phien, isNoiBo);
+            return;
+        }
+
+        guiTinNhanBot(phien, geminiReply);
     }
 
     private void xuLyEscalate(PhienChat phien, boolean isNoiBo) {
@@ -172,18 +172,10 @@ public class ChatService {
         phienChatRepo.save(phien);
 
         String thongBao = isNoiBo
-                ? "Yêu cầu của bạn cần sự phê duyệt của Admin. Đang kết nối với Admin, vui lòng chờ..."
+                ? "Yêu cầu của bạn cần sự hỗ trợ của Admin. Đang kết nối với Admin, vui lòng chờ..."
                 : "Tôi đã kết nối bạn với nhân viên hỗ trợ. Vui lòng chờ trong giây lát...";
 
-        TinNhan botNotify = TinNhan.builder()
-                .phienChat(phien)
-                .nguoiGui("BOT")
-                .tenNguoiGui("SevenStrike AI")
-                .noiDung(thongBao)
-                .thoiGian(LocalDateTime.now())
-                .build();
-        TinNhan savedNotify = tinNhanRepo.save(botNotify);
-        messagingTemplate.convertAndSend("/topic/chat/" + phien.getId(), toTinNhanDTO(savedNotify));
+        guiTinNhanBot(phien, thongBao);
 
         String notifyTopic = isNoiBo ? "/topic/admin/noibo-notifications" : "/topic/admin/notifications";
         messagingTemplate.convertAndSend(notifyTopic, toDTO(phien));
@@ -196,12 +188,13 @@ public class ChatService {
 
         TinNhan tin = TinNhan.builder()
                 .phienChat(phien)
-                .nguoiGui("NHAN_VIEN")
-                .tenNguoiGui(req.getTenNguoiGui())
-                .noiDung(req.getNoiDung())
+                .nguoiGui(NGUOI_GUI_NHAN_VIEN)
+                .tenNguoiGui(normalizeText(req != null ? req.getTenNguoiGui() : null, "Nhân viên"))
+                .noiDung(normalizeIncomingMessage(req != null ? req.getNoiDung() : null))
                 .thoiGian(LocalDateTime.now())
                 .build();
         TinNhan saved = tinNhanRepo.save(tin);
+
         messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(saved));
     }
 
@@ -213,6 +206,7 @@ public class ChatService {
         if (nhanVienId != null) {
             nhanVienRepo.findById(nhanVienId).ifPresent(phien::setNhanVien);
         }
+
         phien.setTrangThai(TRANG_THAI_DANG_XU_LY);
         PhienChat saved = phienChatRepo.save(phien);
 
@@ -221,15 +215,7 @@ public class ChatService {
                 : "Nhân viên";
         String maNV = saved.getNhanVien() != null ? String.valueOf(saved.getNhanVien().getId()) : "";
 
-        TinNhan notify = TinNhan.builder()
-                .phienChat(saved)
-                .nguoiGui("BOT")
-                .tenNguoiGui("SevenStrike AI")
-                .noiDung("Nhân viên " + tenNV + " (Mã: " + maNV + ") đã tiếp nhận hỗ trợ bạn.")
-                .thoiGian(LocalDateTime.now())
-                .build();
-        TinNhan savedNotify = tinNhanRepo.save(notify);
-        messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(savedNotify));
+        guiTinNhanBot(saved, "Nhân viên " + tenNV + " (Mã: " + maNV + ") đã tiếp nhận hỗ trợ bạn.");
 
         boolean isNoiBo = LOAI_NOI_BO.equals(saved.getLoai());
         String notifyTopic = isNoiBo ? "/topic/admin/noibo-notifications" : "/topic/admin/notifications";
@@ -259,15 +245,7 @@ public class ChatService {
         phien.setThoiGianKetThuc(LocalDateTime.now());
         phienChatRepo.save(phien);
 
-        TinNhan notify = TinNhan.builder()
-                .phienChat(phien)
-                .nguoiGui("BOT")
-                .tenNguoiGui("SevenStrike AI")
-                .noiDung("Phiên hỗ trợ đã kết thúc. Cảm ơn bạn đã liên hệ với SevenStrike!")
-                .thoiGian(LocalDateTime.now())
-                .build();
-        TinNhan saved = tinNhanRepo.save(notify);
-        messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(saved));
+        guiTinNhanBot(phien, "Phiên hỗ trợ đã kết thúc. Cảm ơn bạn đã liên hệ với SevenStrike!");
 
         String notifyTopic = LOAI_NOI_BO.equals(phien.getLoai())
                 ? "/topic/admin/noibo-notifications"
@@ -298,6 +276,36 @@ public class ChatService {
                 .stream()
                 .map(this::toTinNhanDTO)
                 .collect(Collectors.toList());
+    }
+
+    private void guiTinNhanBot(PhienChat phien, String noiDung) {
+        TinNhan botReply = TinNhan.builder()
+                .phienChat(phien)
+                .nguoiGui(NGUOI_GUI_BOT)
+                .tenNguoiGui(TEN_BOT)
+                .noiDung(normalizeText(noiDung, "Xin lỗi, hệ thống đang bận. Bạn vui lòng thử lại sau nhé."))
+                .thoiGian(LocalDateTime.now())
+                .build();
+        TinNhan savedBot = tinNhanRepo.save(botReply);
+        messagingTemplate.convertAndSend("/topic/chat/" + phien.getId(), toTinNhanDTO(savedBot));
+    }
+
+    private boolean isDirectEscalateRequest(String noiDung) {
+        String lower = normalizeIncomingMessage(noiDung).toLowerCase();
+        return lower.contains("gặp nhân viên")
+                || lower.contains("nhân viên hỗ trợ")
+                || lower.contains("gặp admin")
+                || lower.contains("gặp quản lý")
+                || lower.contains("tư vấn trực tiếp")
+                || lower.contains("hỗ trợ trực tiếp")
+                || lower.contains("nói chuyện với người thật")
+                || lower.contains("gặp người thật");
+    }
+
+    private String buildSafeFallback(boolean isNoiBo) {
+        return isNoiBo
+                ? "Mình chưa trả lời chính xác được yêu cầu này. Bạn hãy mô tả rõ hơn hoặc chọn gặp Admin để được hỗ trợ nhé."
+                : "Mình chưa trả lời chính xác được yêu cầu này. Bạn có thể hỏi lại ngắn gọn hơn hoặc chọn gặp nhân viên hỗ trợ nhé.";
     }
 
     private PhienChatDTO toDTO(PhienChat p) {
@@ -339,5 +347,12 @@ public class ChatService {
             return defaultValue;
         }
         return value.trim();
+    }
+
+    private String normalizeIncomingMessage(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().replaceAll("\\s+", " ");
     }
 }

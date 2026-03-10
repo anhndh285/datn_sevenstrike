@@ -38,7 +38,6 @@ public class HoaDon {
     private String maHoaDon;
 
     /**
-     * ✅ DB mới: tinyint
      * 0: Tại quầy | 1: Giao hàng | 2: Online
      */
     @Column(name = "loai_don", nullable = false)
@@ -69,8 +68,8 @@ public class HoaDon {
     private String emailKhachHang;
 
     /**
-     * int code (1..6)
      * 1 Chưa xác nhận | 2 Đã xác nhận | 3 Chờ giao | 4 Đang giao | 5 Hoàn thành | 6 Đã hủy
+     * Có thể mở rộng thêm 7 = Yêu cầu hủy nếu project của bạn dùng flow này.
      */
     @Column(name = "trang_thai_hien_tai", nullable = false)
     private Integer trangThaiHienTai;
@@ -95,4 +94,12 @@ public class HoaDon {
 
     @Column(name = "nguoi_cap_nhat")
     private Integer nguoiCapNhat;
+
+    /**
+     * null = không cần hoàn phí
+     * false = chờ hoàn phí
+     * true = đã hoàn phí
+     */
+    @Column(name = "da_hoan_phi")
+    private Boolean daHoanPhi;
 }

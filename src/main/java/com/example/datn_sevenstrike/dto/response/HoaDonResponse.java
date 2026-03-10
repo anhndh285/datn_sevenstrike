@@ -58,6 +58,16 @@ public class HoaDonResponse {
 
     private List<HoaDonChiTietResponse> chiTietHoaDon;
 
+    private Boolean daHoanPhi;
+    /**
+     * 0: Tiền mặt / COD
+     * 1: Chuyển khoản / VNPAY
+     */
+    private Integer loaiThanhToan;
+
+    /**
+     * Constructor cũ của main branch - giữ nguyên để tránh vỡ projection/service cũ
+     */
     public HoaDonResponse(
             Integer id,
             Integer idKhachHang,
@@ -110,6 +120,130 @@ public class HoaDonResponse {
         this.nguoiTao = nguoiTao;
         this.ngayCapNhat = ngayCapNhat;
         this.nguoiCapNhat = nguoiCapNhat;
+    }
+
+    /**
+     * Constructor theo nhánh của Duy - giữ để tương thích nếu đã có query/service dùng
+     */
+    public HoaDonResponse(
+            Integer id,
+            Integer idKhachHang,
+            Integer idNhanVien,
+            String tenNhanVien,
+            Integer idPhieuGiamGia,
+            Integer idPhieuGiamGiaCaNhan,
+            String maHoaDon,
+            Integer loaiDon,
+            BigDecimal phiVanChuyen,
+            BigDecimal tongTien,
+            BigDecimal tongTienSauGiam,
+            BigDecimal tongTienGiam,
+            String tenKhachHang,
+            String diaChiKhachHang,
+            String soDienThoaiKhachHang,
+            String emailKhachHang,
+            Integer trangThaiHienTai,
+            String trangThaiLabel,
+            LocalDateTime ngayTao,
+            LocalDateTime ngayThanhToan,
+            String ghiChu,
+            Boolean xoaMem,
+            Integer nguoiTao,
+            LocalDateTime ngayCapNhat,
+            Integer nguoiCapNhat,
+            Boolean daHoanPhi
+    ) {
+        this(
+                id,
+                idKhachHang,
+                idNhanVien,
+                tenNhanVien,
+                idPhieuGiamGia,
+                idPhieuGiamGiaCaNhan,
+                maHoaDon,
+                loaiDon,
+                phiVanChuyen,
+                tongTien,
+                tongTienSauGiam,
+                tongTienGiam,
+                tenKhachHang,
+                diaChiKhachHang,
+                soDienThoaiKhachHang,
+                emailKhachHang,
+                trangThaiHienTai,
+                trangThaiLabel,
+                ngayTao,
+                ngayThanhToan,
+                ghiChu,
+                xoaMem,
+                nguoiTao,
+                ngayCapNhat,
+                nguoiCapNhat
+        );
+        this.daHoanPhi = daHoanPhi;
+    }
+
+    /**
+     * Constructor mở rộng đầy đủ cho các flow mới
+     */
+    public HoaDonResponse(
+            Integer id,
+            Integer idKhachHang,
+            Integer idNhanVien,
+            String tenNhanVien,
+            Integer idPhieuGiamGia,
+            Integer idPhieuGiamGiaCaNhan,
+            String maHoaDon,
+            Integer loaiDon,
+            BigDecimal phiVanChuyen,
+            BigDecimal tongTien,
+            BigDecimal tongTienSauGiam,
+            BigDecimal tongTienGiam,
+            String tenKhachHang,
+            String diaChiKhachHang,
+            String soDienThoaiKhachHang,
+            String emailKhachHang,
+            Integer trangThaiHienTai,
+            String trangThaiLabel,
+            LocalDateTime ngayTao,
+            LocalDateTime ngayThanhToan,
+            String ghiChu,
+            Boolean xoaMem,
+            Integer nguoiTao,
+            LocalDateTime ngayCapNhat,
+            Integer nguoiCapNhat,
+            Boolean daHoanPhi,
+            Integer loaiThanhToan
+    ) {
+        this(
+                id,
+                idKhachHang,
+                idNhanVien,
+                tenNhanVien,
+                idPhieuGiamGia,
+                idPhieuGiamGiaCaNhan,
+                maHoaDon,
+                loaiDon,
+                phiVanChuyen,
+                tongTien,
+                tongTienSauGiam,
+                tongTienGiam,
+                tenKhachHang,
+                diaChiKhachHang,
+                soDienThoaiKhachHang,
+                emailKhachHang,
+                trangThaiHienTai,
+                trangThaiLabel,
+                ngayTao,
+                ngayThanhToan,
+                ghiChu,
+                xoaMem,
+                nguoiTao,
+                ngayCapNhat,
+                nguoiCapNhat
+        );
+        this.daHoanPhi = daHoanPhi;
+        this.loaiThanhToan = loaiThanhToan;
     }
 
     public HoaDonResponse(

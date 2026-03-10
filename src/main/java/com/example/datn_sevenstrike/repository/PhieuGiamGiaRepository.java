@@ -24,4 +24,14 @@ public interface PhieuGiamGiaRepository extends JpaRepository<PhieuGiamGia, Inte
            and so_luong_su_dung >= 1
     """, nativeQuery = true)
     int consumeNeuCon(@Param("id") Integer id);
+
+    // Hoàn lại 1 lượt khi hủy đơn
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        update phieu_giam_gia
+           set so_luong_su_dung = so_luong_su_dung + 1
+         where id = :id
+           and xoa_mem = 0
+    """, nativeQuery = true)
+    int restoreOne(@Param("id") Integer id);
 }

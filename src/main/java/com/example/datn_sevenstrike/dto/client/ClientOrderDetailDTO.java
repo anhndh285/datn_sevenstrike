@@ -36,4 +36,6 @@ public class ClientOrderDetailDTO {
     // Payment
     private boolean daThanhToan;
     private String phuongThucThanhToan;
+    private Integer loaiThanhToan; // 0: COD/Tiền mặt, 1: Chuyển khoản/VNPay
+    private Integer idKhachHang;
 }
