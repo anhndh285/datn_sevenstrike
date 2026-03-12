@@ -635,6 +635,7 @@ public class HoaDonService {
             return one(idHoaDon);
         }
 
+        validateDanhSachCtspConBanDuoc(newQtyMap);
         adjustInventoryTheoDelta(oldQtyMap, newQtyMap, idHoaDon);
 
         Map<Integer, List<HoaDonChiTiet>> currentByCtsp = groupByCtsp(current);
@@ -766,6 +767,8 @@ public class HoaDonService {
         if (items == null || items.isEmpty()) {
             throw new BadRequestEx("Hóa đơn chưa có sản phẩm, không thể chốt");
         }
+
+        validateDanhSachHoaDonChiTietConBanDuoc(items);
 
         BigDecimal tongTienHang = tongTienHangTuChiTiet(items);
         BigDecimal tienGiam = tinhVaConsumeVoucherNeuCo(hd, tongTienHang);
@@ -924,7 +927,7 @@ public class HoaDonService {
         }
 
         // Nếu đơn online/giao hàng đang chờ xác nhận mà không còn đủ hàng:
-        // - online => tự động hủy + báo "Sản phẩm hiện đã hết hàng"
+        // - online => tự động hủy + báo "Sản phẩm hiện đã hết hàng" hoặc đã ngừng bán
         // - giao hàng => chặn xác nhận và yêu cầu hủy
         xuLyThieuTonKhoKhiXacNhanDon(hd);
 
@@ -1109,9 +1112,7 @@ public class HoaDonService {
             }
         }
 
-        // Nếu rời khỏi trạng thái chờ xác nhận thì bắt buộc kiểm tra tồn.
-        // - online: thiếu hàng => auto hủy + throw "Sản phẩm hiện đã hết hàng"
-        // - giao hàng: thiếu hàng => chặn chuyển trạng thái và yêu cầu hủy
+        // Nếu rời khỏi trạng thái chờ xác nhận thì bắt buộc kiểm tra tồn / trạng thái bán được.
         if (!newStatus.equals(TrangThaiHoaDon.DA_HUY.code)
                 && Integer.valueOf(TrangThaiHoaDon.CHUA_XAC_NHAN.code).equals(oldStatus)
                 && !Integer.valueOf(TrangThaiHoaDon.CHUA_XAC_NHAN.code).equals(newStatus)) {
@@ -1134,6 +1135,7 @@ public class HoaDonService {
             if (items == null || items.isEmpty()) {
                 throw new BadRequestEx("Hóa đơn chưa có sản phẩm, không thể hoàn thành");
             }
+            validateDanhSachHoaDonChiTietConBanDuoc(items);
             if (hd.getNgayThanhToan() == null) {
                 hd.setNgayThanhToan(LocalDateTime.now());
             }
@@ -1175,6 +1177,7 @@ public class HoaDonService {
             throw new BadRequestEx("Hóa đơn chưa có sản phẩm, không thể xác nhận");
         }
 
+        List<String> invalidLines = new ArrayList<>();
         List<String> outOfStockLines = new ArrayList<>();
 
         for (HoaDonChiTiet ct : items) {
@@ -1185,26 +1188,34 @@ public class HoaDonService {
 
             if (ctspId == null || qty == null || qty <= 0) continue;
 
-            ChiTietSanPham ctsp = requireCtsp(ctspId);
+            ChiTietSanPham ctsp = chiTietSanPhamRepository.findByIdAndXoaMemFalse(ctspId).orElse(null);
+            String label = buildCtspLabel(ctsp, ctspId);
+
+            if (ctsp == null || !chiTietSanPhamRepository.existsBanDuoc(ctspId)) {
+                invalidLines.add(label);
+                continue;
+            }
+
             int tonHienTai = ctsp.getSoLuong() == null ? 0 : ctsp.getSoLuong();
-
             if (tonHienTai < qty) {
-                String maCtsp = ctsp.getMaChiTietSanPham();
-                String tenSp = (ctsp.getSanPham() == null) ? null : ctsp.getSanPham().getTenSanPham();
-
-                String label;
-                if (maCtsp != null && !maCtsp.isBlank() && tenSp != null && !tenSp.isBlank()) {
-                    label = maCtsp + " - " + tenSp;
-                } else if (maCtsp != null && !maCtsp.isBlank()) {
-                    label = maCtsp;
-                } else if (tenSp != null && !tenSp.isBlank()) {
-                    label = tenSp;
-                } else {
-                    label = "CTSP id=" + ctspId;
-                }
-
                 outOfStockLines.add(label + " (cần " + qty + ", còn " + tonHienTai + ")");
             }
+        }
+
+        if (!invalidLines.isEmpty()) {
+            if (loaiDon == LOAI_DON_ONLINE) {
+                String systemNote = "[HỆ THỐNG] Tự động hủy đơn online - Sản phẩm hiện đã ngừng kinh doanh hoặc thuộc tính đi kèm đã ngừng hoạt động: "
+                        + String.join("; ", invalidLines);
+
+                cancelAndRestoreStock(hd, systemNote, null);
+                throw new BadRequestEx("Sản phẩm hiện đã ngừng kinh doanh hoặc thuộc tính đi kèm đã ngừng hoạt động");
+            }
+
+            throw new BadRequestEx(
+                    "Không thể xác nhận. Sản phẩm hiện đã ngừng kinh doanh hoặc thuộc tính đi kèm đã ngừng hoạt động: "
+                            + String.join("; ", invalidLines)
+                            + ". Vui lòng hủy đơn."
+            );
         }
 
         if (outOfStockLines.isEmpty()) return;
@@ -1232,19 +1243,7 @@ public class HoaDonService {
 
         int availableStock = ctsp.getSoLuong() == null ? 0 : ctsp.getSoLuong();
 
-        String maCtsp = ctsp.getMaChiTietSanPham();
-        String tenSp = (ctsp.getSanPham() == null) ? null : ctsp.getSanPham().getTenSanPham();
-
-        String label;
-        if (maCtsp != null && !maCtsp.isBlank() && tenSp != null && !tenSp.isBlank()) {
-            label = maCtsp + " - " + tenSp;
-        } else if (maCtsp != null && !maCtsp.isBlank()) {
-            label = maCtsp;
-        } else if (tenSp != null && !tenSp.isBlank()) {
-            label = tenSp;
-        } else {
-            label = "CTSP id=" + ctspId;
-        }
+        String label = buildCtspLabel(ctsp, ctspId);
 
         List<Integer> affectedOrderIds =
                 hoaDonChiTietRepository.findPendingOnlineOrderIdsByCtspId(ctspId, excludeHoaDonId);
@@ -1743,6 +1742,7 @@ public class HoaDonService {
         }
 
         Map<Integer, Integer> newQtyMap = sumQtyByCtsp(finalActive);
+        validateDanhSachCtspConBanDuoc(newQtyMap);
         adjustInventoryTheoDelta(oldQtyMap, newQtyMap, idHoaDon);
 
         hoaDonChiTietRepository.saveAll(current);
@@ -2100,6 +2100,8 @@ public class HoaDonService {
 
             int delta = newQty - oldQty;
             if (delta > 0) {
+                ensureCtspBanDuoc(ctspId);
+
                 int updated = chiTietSanPhamRepository.giamTonNeuDu(ctspId, delta);
                 if (updated == 0) {
                     ChiTietSanPham ctsp = requireCtsp(ctspId);
@@ -2110,7 +2112,6 @@ public class HoaDonService {
                             + " (tồn hiện tại: " + (ton == null ? 0 : ton) + ")");
                 }
 
-                // Sau khi vừa giảm tồn, quét các đơn online chờ xác nhận bị ảnh hưởng
                 autoCancelAffectedPendingOnlineOrders(ctspId, excludeHoaDonId);
 
             } else if (delta < 0) {
@@ -2169,6 +2170,61 @@ public class HoaDonService {
         hd.setTongTien(tongTienMoi);
         hd.setTongTienGiam(tongTienGiam);
         hd.setTongTienSauGiam(tongTienMoi.subtract(tongTienGiam));
+    }
+
+    private void validateDanhSachCtspConBanDuoc(Map<Integer, Integer> qtyMap) {
+        if (qtyMap == null || qtyMap.isEmpty()) return;
+
+        for (Map.Entry<Integer, Integer> e : qtyMap.entrySet()) {
+            Integer ctspId = e.getKey();
+            Integer qty = e.getValue();
+
+            if (ctspId == null || qty == null || qty <= 0) continue;
+            ensureCtspBanDuoc(ctspId);
+        }
+    }
+
+    private void validateDanhSachHoaDonChiTietConBanDuoc(List<HoaDonChiTiet> items) {
+        if (items == null || items.isEmpty()) return;
+
+        for (HoaDonChiTiet ct : items) {
+            if (ct == null || Boolean.TRUE.equals(ct.getXoaMem())) continue;
+
+            Integer ctspId = ct.getIdChiTietSanPham();
+            Integer qty = ct.getSoLuong();
+
+            if (ctspId == null || qty == null || qty <= 0) continue;
+            ensureCtspBanDuoc(ctspId);
+        }
+    }
+
+    private void ensureCtspBanDuoc(Integer ctspId) {
+        ChiTietSanPham ctsp = chiTietSanPhamRepository.findByIdAndXoaMemFalse(ctspId).orElse(null);
+
+        if (ctsp == null || !chiTietSanPhamRepository.existsBanDuoc(ctspId)) {
+            throw new BadRequestEx(
+                    "Sản phẩm hiện đã ngừng kinh doanh hoặc thuộc tính đi kèm đã ngừng hoạt động: "
+                            + buildCtspLabel(ctsp, ctspId)
+            );
+        }
+    }
+
+    private String buildCtspLabel(ChiTietSanPham ctsp, Integer ctspId) {
+        if (ctsp == null) return "CTSP id=" + ctspId;
+
+        String maCtsp = ctsp.getMaChiTietSanPham();
+        String tenSp = (ctsp.getSanPham() == null) ? null : ctsp.getSanPham().getTenSanPham();
+
+        if (maCtsp != null && !maCtsp.isBlank() && tenSp != null && !tenSp.isBlank()) {
+            return maCtsp + " - " + tenSp;
+        }
+        if (maCtsp != null && !maCtsp.isBlank()) {
+            return maCtsp;
+        }
+        if (tenSp != null && !tenSp.isBlank()) {
+            return tenSp;
+        }
+        return "CTSP id=" + ctspId;
     }
 
     private String trimToNull(String s) {

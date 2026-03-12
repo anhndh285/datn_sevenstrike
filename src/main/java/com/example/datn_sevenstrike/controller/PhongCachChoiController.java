@@ -19,6 +19,11 @@ public class PhongCachChoiController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<PhongCachChoiResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public PhongCachChoiResponse one(@PathVariable Integer id) {
         return service.one(id);

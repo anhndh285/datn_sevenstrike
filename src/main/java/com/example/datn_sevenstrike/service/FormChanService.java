@@ -5,6 +5,7 @@ import com.example.datn_sevenstrike.dto.response.FormChanResponse;
 import com.example.datn_sevenstrike.entity.FormChan;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
 import com.example.datn_sevenstrike.repository.FormChanRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FormChanService {
 
     private final FormChanRepository repo;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<FormChanResponse> all() {
@@ -24,7 +26,6 @@ public class FormChanService {
                 .stream().map(this::toResponse).toList();
     }
 
-    // ✅ dùng cho combobox: chỉ hiện đang hoạt động
     public List<FormChanResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
                 .stream().map(this::toResponse).toList();
@@ -56,6 +57,8 @@ public class FormChanService {
         FormChan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
 
+        boolean activeCu = isActive(db);
+
         if (req.getTenFormChan() != null) db.setTenFormChan(req.getTenFormChan());
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
         if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
@@ -63,25 +66,44 @@ public class FormChanService {
         applyDefaults(db);
         validate(db);
 
-        return toResponse(repo.save(db));
+        FormChan saved = repo.save(db);
+        boolean activeMoi = isActive(saved);
+
+        if (activeCu && !activeMoi) {
+            chiTietSanPhamRepository.ngungKinhDoanhTheoFormChan(saved.getId());
+        } else if (!activeCu && activeMoi) {
+            chiTietSanPhamRepository.batKinhDoanhTheoFormChan(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         FormChan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThai(false);
         repo.save(db);
+
+        chiTietSanPhamRepository.ngungKinhDoanhTheoFormChan(id);
     }
 
     private void applyDefaults(FormChan e) {
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getTrangThai() == null) e.setTrangThai(true);
+        if (e.getTenFormChan() != null) e.setTenFormChan(e.getTenFormChan().trim());
     }
 
     private void validate(FormChan e) {
-        if (e.getTenFormChan() == null || e.getTenFormChan().isBlank())
+        if (e.getTenFormChan() == null || e.getTenFormChan().isBlank()) {
             throw new BadRequestEx("Thiếu ten_form_chan");
+        }
+    }
+
+    private boolean isActive(FormChan e) {
+        return !Boolean.TRUE.equals(e.getXoaMem()) && Boolean.TRUE.equals(e.getTrangThai());
     }
 
     private FormChanResponse toResponse(FormChan e) {

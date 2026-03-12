@@ -2,6 +2,7 @@ package com.example.datn_sevenstrike.controller;
 
 import com.example.datn_sevenstrike.dto.request.ChatLieuRequest;
 import com.example.datn_sevenstrike.dto.response.ChatLieuResponse;
+import com.example.datn_sevenstrike.dto.response.CoGiayResponse;
 import com.example.datn_sevenstrike.service.ChatLieuService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,11 @@ public class ChatLieuController {
     @GetMapping
     public List<ChatLieuResponse> all() {
         return service.all();
+    }
+
+    @GetMapping("/active")
+    public List<ChatLieuResponse> allActive() {
+        return service.allActive();
     }
 
     @GetMapping("/{id}")

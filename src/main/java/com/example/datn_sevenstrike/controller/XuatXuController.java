@@ -19,6 +19,11 @@ public class XuatXuController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<XuatXuResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public XuatXuResponse one(@PathVariable Integer id) {
         return service.one(id);

@@ -19,6 +19,11 @@ public class ThuongHieuController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<ThuongHieuResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public ThuongHieuResponse one(@PathVariable Integer id) {
         return service.one(id);

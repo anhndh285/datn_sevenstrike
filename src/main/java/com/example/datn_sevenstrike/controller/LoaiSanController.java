@@ -19,6 +19,11 @@ public class LoaiSanController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<LoaiSanResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public LoaiSanResponse one(@PathVariable Integer id) {
         return service.one(id);

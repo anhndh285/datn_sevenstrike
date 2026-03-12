@@ -5,7 +5,9 @@ import com.example.datn_sevenstrike.dto.response.CoGiayResponse;
 import com.example.datn_sevenstrike.entity.CoGiay;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
 import com.example.datn_sevenstrike.repository.CoGiayRepository;
+import com.example.datn_sevenstrike.repository.SanPhamRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CoGiayService {
 
     private final CoGiayRepository repo;
+    private final SanPhamRepository sanPhamRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<CoGiayResponse> all() {
@@ -55,6 +59,8 @@ public class CoGiayService {
         CoGiay db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy CoGiay id=" + id));
 
+        boolean activeCu = isActive(db);
+
         if (req.getTenCoGiay() != null) db.setTenCoGiay(req.getTenCoGiay());
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
         if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
@@ -62,25 +68,47 @@ public class CoGiayService {
         applyDefaults(db);
         validate(db);
 
-        return toResponse(repo.save(db));
+        CoGiay saved = repo.save(db);
+        boolean activeMoi = isActive(saved);
+
+        if (activeCu && !activeMoi) {
+            sanPhamRepository.ngungKinhDoanhTheoCoGiay(saved.getId());
+            chiTietSanPhamRepository.ngungKinhDoanhTheoCoGiay(saved.getId());
+        } else if (!activeCu && activeMoi) {
+            sanPhamRepository.batKinhDoanhTheoCoGiay(saved.getId());
+            chiTietSanPhamRepository.batKinhDoanhTheoCoGiay(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         CoGiay db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy CoGiay id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThai(false);
         repo.save(db);
+
+        sanPhamRepository.ngungKinhDoanhTheoCoGiay(id);
+        chiTietSanPhamRepository.ngungKinhDoanhTheoCoGiay(id);
     }
 
     private void applyDefaults(CoGiay e) {
         if (e.getXoaMem() == null) e.setXoaMem(false);
         if (e.getTrangThai() == null) e.setTrangThai(true);
+        if (e.getTenCoGiay() != null) e.setTenCoGiay(e.getTenCoGiay().trim());
     }
 
     private void validate(CoGiay e) {
-        if (e.getTenCoGiay() == null || e.getTenCoGiay().isBlank())
+        if (e.getTenCoGiay() == null || e.getTenCoGiay().isBlank()) {
             throw new BadRequestEx("Thiếu ten_co_giay");
+        }
+    }
+
+    private boolean isActive(CoGiay e) {
+        return !Boolean.TRUE.equals(e.getXoaMem()) && Boolean.TRUE.equals(e.getTrangThai());
     }
 
     private CoGiayResponse toResponse(CoGiay e) {

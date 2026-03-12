@@ -19,6 +19,11 @@ public class FormChanController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<FormChanResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public FormChanResponse one(@PathVariable Integer id) {
         return service.one(id);

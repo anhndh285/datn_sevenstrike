@@ -19,6 +19,11 @@ public class ViTriThiDauController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<ViTriThiDauResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public ViTriThiDauResponse one(@PathVariable Integer id) {
         return service.one(id);

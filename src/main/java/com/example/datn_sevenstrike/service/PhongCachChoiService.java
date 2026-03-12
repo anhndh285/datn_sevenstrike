@@ -5,7 +5,9 @@ import com.example.datn_sevenstrike.dto.response.PhongCachChoiResponse;
 import com.example.datn_sevenstrike.entity.PhongCachChoi;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
 import com.example.datn_sevenstrike.repository.PhongCachChoiRepository;
+import com.example.datn_sevenstrike.repository.SanPhamRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class PhongCachChoiService {
 
     private final PhongCachChoiRepository repo;
+    private final SanPhamRepository sanPhamRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<PhongCachChoiResponse> all() {
@@ -55,6 +59,8 @@ public class PhongCachChoiService {
         PhongCachChoi db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhongCachChoi id=" + id));
 
+        boolean activeCu = isActive(db);
+
         if (req.getTenPhongCach() != null) db.setTenPhongCach(req.getTenPhongCach());
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
         if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
@@ -62,15 +68,31 @@ public class PhongCachChoiService {
         applyDefaults(db);
         validate(db);
 
-        return toResponse(repo.save(db));
+        PhongCachChoi saved = repo.save(db);
+        boolean activeMoi = isActive(saved);
+
+        if (activeCu && !activeMoi) {
+            sanPhamRepository.ngungKinhDoanhTheoPhongCachChoi(saved.getId());
+            chiTietSanPhamRepository.ngungKinhDoanhTheoPhongCachChoi(saved.getId());
+        } else if (!activeCu && activeMoi) {
+            sanPhamRepository.batKinhDoanhTheoPhongCachChoi(saved.getId());
+            chiTietSanPhamRepository.batKinhDoanhTheoPhongCachChoi(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         PhongCachChoi db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhongCachChoi id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThai(false);
         repo.save(db);
+
+        sanPhamRepository.ngungKinhDoanhTheoPhongCachChoi(id);
+        chiTietSanPhamRepository.ngungKinhDoanhTheoPhongCachChoi(id);
     }
 
     private void applyDefaults(PhongCachChoi e) {
@@ -80,8 +102,13 @@ public class PhongCachChoiService {
     }
 
     private void validate(PhongCachChoi e) {
-        if (e.getTenPhongCach() == null || e.getTenPhongCach().isBlank())
+        if (e.getTenPhongCach() == null || e.getTenPhongCach().isBlank()) {
             throw new BadRequestEx("Thiếu ten_phong_cach");
+        }
+    }
+
+    private boolean isActive(PhongCachChoi e) {
+        return !Boolean.TRUE.equals(e.getXoaMem()) && Boolean.TRUE.equals(e.getTrangThai());
     }
 
     private PhongCachChoiResponse toResponse(PhongCachChoi e) {

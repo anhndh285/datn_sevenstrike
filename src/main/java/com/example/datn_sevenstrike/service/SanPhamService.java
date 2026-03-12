@@ -5,6 +5,7 @@ import com.example.datn_sevenstrike.dto.response.SanPhamResponse;
 import com.example.datn_sevenstrike.entity.SanPham;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
 import com.example.datn_sevenstrike.repository.SanPhamRepository;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SanPhamService {
 
     private final SanPhamRepository repo;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<SanPhamResponse> all() {
@@ -73,6 +75,8 @@ public class SanPhamService {
         SanPham db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy SanPham id=" + id));
 
+        Boolean trangThaiCu = db.getTrangThaiKinhDoanh();
+
         if (req.getIdThuongHieu() != null) db.setIdThuongHieu(req.getIdThuongHieu());
         if (req.getIdXuatXu() != null) db.setIdXuatXu(req.getIdXuatXu());
         if (req.getIdViTriThiDau() != null) db.setIdViTriThiDau(req.getIdViTriThiDau());
@@ -88,16 +92,28 @@ public class SanPhamService {
         applyDefaults(db, false);
         validate(db);
 
-        return toResponse(repo.save(db));
+        SanPham saved = repo.save(db);
+
+        if (Boolean.TRUE.equals(trangThaiCu) && Boolean.FALSE.equals(saved.getTrangThaiKinhDoanh())) {
+            chiTietSanPhamRepository.ngungKinhDoanhTheoSanPham(saved.getId());
+        } else if (Boolean.FALSE.equals(trangThaiCu) && Boolean.TRUE.equals(saved.getTrangThaiKinhDoanh())) {
+            chiTietSanPhamRepository.batKinhDoanhTheoSanPham(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         SanPham db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy SanPham id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThaiKinhDoanh(false);
         db.setNgayCapNhat(LocalDateTime.now());
         repo.save(db);
+
+        chiTietSanPhamRepository.ngungKinhDoanhTheoSanPham(id);
     }
 
     private void applyDefaults(SanPham e, boolean createMode) {
@@ -115,7 +131,9 @@ public class SanPhamService {
 
     private void validate(SanPham e) {
         if (e.getIdThuongHieu() == null) throw new BadRequestEx("Thiếu id_thuong_hieu");
-        if (e.getTenSanPham() == null || e.getTenSanPham().isBlank()) throw new BadRequestEx("Thiếu ten_san_pham");
+        if (e.getTenSanPham() == null || e.getTenSanPham().isBlank()) {
+            throw new BadRequestEx("Thiếu ten_san_pham");
+        }
     }
 
     private SanPhamResponse toResponse(SanPham e) {

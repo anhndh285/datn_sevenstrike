@@ -19,6 +19,11 @@ public class CoGiayController {
         return service.all();
     }
 
+    @GetMapping("/active")
+    public List<CoGiayResponse> allActive() {
+        return service.allActive();
+    }
+
     @GetMapping("/{id}")
     public CoGiayResponse one(@PathVariable Integer id) {
         return service.one(id);

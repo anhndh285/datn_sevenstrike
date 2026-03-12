@@ -5,6 +5,8 @@ import com.example.datn_sevenstrike.dto.response.ViTriThiDauResponse;
 import com.example.datn_sevenstrike.entity.ViTriThiDau;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
+import com.example.datn_sevenstrike.repository.SanPhamRepository;
 import com.example.datn_sevenstrike.repository.ViTriThiDauRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ViTriThiDauService {
 
     private final ViTriThiDauRepository repo;
+    private final SanPhamRepository sanPhamRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<ViTriThiDauResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
+                .stream().map(this::toResponse).toList();
+    }
+
+    public List<ViTriThiDauResponse> allActive() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
                 .stream().map(this::toResponse).toList();
     }
 
@@ -37,9 +46,9 @@ public class ViTriThiDauService {
         ViTriThiDau e = mapper.map(req, ViTriThiDau.class);
         e.setId(null);
 
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-
+        applyDefaults(e);
         validate(e);
+
         return toResponse(repo.save(e));
     }
 
@@ -50,24 +59,56 @@ public class ViTriThiDauService {
         ViTriThiDau db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ViTriThiDau id=" + id));
 
-        if (req.getTenViTri() != null) db.setTenViTri(req.getTenViTri());
+        boolean activeCu = isActive(db);
 
+        if (req.getTenViTri() != null) db.setTenViTri(req.getTenViTri());
+        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
+        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+
+        applyDefaults(db);
         validate(db);
-        return toResponse(repo.save(db));
+
+        ViTriThiDau saved = repo.save(db);
+        boolean activeMoi = isActive(saved);
+
+        if (activeCu && !activeMoi) {
+            sanPhamRepository.ngungKinhDoanhTheoViTriThiDau(saved.getId());
+            chiTietSanPhamRepository.ngungKinhDoanhTheoViTriThiDau(saved.getId());
+        } else if (!activeCu && activeMoi) {
+            sanPhamRepository.batKinhDoanhTheoViTriThiDau(saved.getId());
+            chiTietSanPhamRepository.batKinhDoanhTheoViTriThiDau(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         ViTriThiDau db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ViTriThiDau id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThai(false);
         repo.save(db);
+
+        sanPhamRepository.ngungKinhDoanhTheoViTriThiDau(id);
+        chiTietSanPhamRepository.ngungKinhDoanhTheoViTriThiDau(id);
+    }
+
+    private void applyDefaults(ViTriThiDau e) {
+        if (e.getXoaMem() == null) e.setXoaMem(false);
+        if (e.getTrangThai() == null) e.setTrangThai(true);
+        if (e.getTenViTri() != null) e.setTenViTri(e.getTenViTri().trim());
     }
 
     private void validate(ViTriThiDau e) {
         if (e.getTenViTri() == null || e.getTenViTri().isBlank()) {
             throw new BadRequestEx("Thiếu ten_vi_tri");
         }
+    }
+
+    private boolean isActive(ViTriThiDau e) {
+        return !Boolean.TRUE.equals(e.getXoaMem()) && Boolean.TRUE.equals(e.getTrangThai());
     }
 
     private ViTriThiDauResponse toResponse(ViTriThiDau e) {

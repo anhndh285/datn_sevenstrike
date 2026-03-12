@@ -5,6 +5,8 @@ import com.example.datn_sevenstrike.dto.response.ThuongHieuResponse;
 import com.example.datn_sevenstrike.entity.ThuongHieu;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
+import com.example.datn_sevenstrike.repository.ChiTietSanPhamRepository;
+import com.example.datn_sevenstrike.repository.SanPhamRepository;
 import com.example.datn_sevenstrike.repository.ThuongHieuRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ThuongHieuService {
 
     private final ThuongHieuRepository repo;
+    private final SanPhamRepository sanPhamRepository;
+    private final ChiTietSanPhamRepository chiTietSanPhamRepository;
     private final ModelMapper mapper;
 
     public List<ThuongHieuResponse> all() {
@@ -38,6 +42,7 @@ public class ThuongHieuService {
     @Transactional
     public ThuongHieuResponse create(ThuongHieuRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+
         ThuongHieu e = mapper.map(req, ThuongHieu.class);
         e.setId(null);
 
@@ -50,8 +55,11 @@ public class ThuongHieuService {
     @Transactional
     public ThuongHieuResponse update(Integer id, ThuongHieuRequest req) {
         if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+
         ThuongHieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
+
+        boolean activeCu = !Boolean.TRUE.equals(db.getXoaMem()) && Boolean.TRUE.equals(db.getTrangThai());
 
         if (req.getTenThuongHieu() != null) db.setTenThuongHieu(req.getTenThuongHieu());
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
@@ -60,15 +68,31 @@ public class ThuongHieuService {
         applyDefaults(db);
         validate(db);
 
-        return toResponse(repo.save(db));
+        ThuongHieu saved = repo.save(db);
+        boolean activeMoi = !Boolean.TRUE.equals(saved.getXoaMem()) && Boolean.TRUE.equals(saved.getTrangThai());
+
+        if (activeCu && !activeMoi) {
+            sanPhamRepository.ngungKinhDoanhTheoThuongHieu(saved.getId());
+            chiTietSanPhamRepository.ngungKinhDoanhTheoThuongHieu(saved.getId());
+        } else if (!activeCu && activeMoi) {
+            sanPhamRepository.batKinhDoanhTheoThuongHieu(saved.getId());
+            chiTietSanPhamRepository.batKinhDoanhTheoThuongHieu(saved.getId());
+        }
+
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(Integer id) {
         ThuongHieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
+
         db.setXoaMem(true);
+        db.setTrangThai(false);
         repo.save(db);
+
+        sanPhamRepository.ngungKinhDoanhTheoThuongHieu(id);
+        chiTietSanPhamRepository.ngungKinhDoanhTheoThuongHieu(id);
     }
 
     private void applyDefaults(ThuongHieu e) {
@@ -78,8 +102,13 @@ public class ThuongHieuService {
     }
 
     private void validate(ThuongHieu e) {
-        if (e.getTenThuongHieu() == null || e.getTenThuongHieu().isBlank())
+        if (e.getTenThuongHieu() == null || e.getTenThuongHieu().isBlank()) {
             throw new BadRequestEx("Thiếu ten_thuong_hieu");
+        }
+    }
+
+    private boolean isActive(ThuongHieu e) {
+        return !Boolean.TRUE.equals(e.getXoaMem()) && Boolean.TRUE.equals(e.getTrangThai());
     }
 
     private ThuongHieuResponse toResponse(ThuongHieu e) {

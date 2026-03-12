@@ -48,7 +48,10 @@ public class ClientOrderService {
     @Transactional(readOnly = true)
     public List<ProductClientDTO> getProducts() {
         List<SanPham> list = sanPhamRepo.findAllByXoaMemFalseAndTrangThaiKinhDoanhTrueOrderByIdDesc();
-        return list.stream().map(this::mapToProductClientDTO).collect(Collectors.toList());
+        return list.stream()
+                .map(this::mapToProductClientDTO)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -58,10 +61,18 @@ public class ClientOrderService {
 
         List<ProductClientDTO> result = new ArrayList<>();
         Set<Integer> seen = new LinkedHashSet<>();
+
         for (Integer spId : topIds) {
-            if (seen.add(spId)) {
-                sanPhamRepo.findByIdAndXoaMemFalse(spId).ifPresent(sp -> result.add(mapToProductClientDTO(sp)));
-            }
+            if (!seen.add(spId)) continue;
+
+            sanPhamRepo.findByIdAndXoaMemFalse(spId).ifPresent(sp -> {
+                if (!Boolean.TRUE.equals(sp.getTrangThaiKinhDoanh())) return;
+
+                ProductClientDTO dto = mapToProductClientDTO(sp);
+                if (dto != null) {
+                    result.add(dto);
+                }
+            });
         }
         return result;
     }
@@ -70,13 +81,20 @@ public class ClientOrderService {
     public List<ProductClientDTO> getNewArrivalProducts() {
         LocalDateTime threshold = LocalDateTime.now().minusMonths(12);
         List<SanPham> list = sanPhamRepo.findNewArrivals(threshold, PageRequest.of(0, 8));
-        return list.stream().map(this::mapToProductClientDTO).collect(Collectors.toList());
+        return list.stream()
+                .map(this::mapToProductClientDTO)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public ProductDetailClientDTO getProductDetail(Integer id) {
         SanPham sp = sanPhamRepo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy sản phẩm id=" + id));
+
+        if (!Boolean.TRUE.equals(sp.getTrangThaiKinhDoanh())) {
+            throw new NotFoundEx("Sản phẩm không còn kinh doanh");
+        }
 
         return mapToProductDetailClientDTO(sp);
     }
@@ -197,14 +215,12 @@ public class ClientOrderService {
 
         TrangThaiHoaDon currentStatus = TrangThaiHoaDon.fromCode(hd.getTrangThaiHienTai());
 
-        // ✅ FIX: Logic hiển thị phương thức thanh toán chính xác
         boolean isCK = isDonChuyenKhoan(hd.getId());
         String ptttText = "Thanh toán khi nhận hàng";
         if (isCK) {
             ptttText = hd.getNgayThanhToan() != null ? "Thanh toán trước (VNPay)" : "Chờ thanh toán (VNPay)";
         }
 
-        // ✅ FIX: Compute tamTinh from actual items (entity tongTien may be stale after edits)
         BigDecimal tamTinhReal = details.stream()
                 .map(d -> {
                     BigDecimal dg = d.getDonGia() != null ? d.getDonGia() : BigDecimal.ZERO;
@@ -295,7 +311,6 @@ public class ClientOrderService {
                         .orElse(getFullUrl(imgs.get(0).getDuongDanAnh()));
             }
 
-            // Tính giá hiện tại để hiển thị so sánh (donGiaCu trong DTO)
             BigDecimal giaBan = ctsp.getGiaBan() != null ? ctsp.getGiaBan() : ctsp.getGiaNiemYet();
             currentPrice = giaBan != null ? giaBan : BigDecimal.ZERO;
             LocalDate today = LocalDate.now();
@@ -333,7 +348,6 @@ public class ClientOrderService {
         List<HoaDonChiTiet> hdcts = new ArrayList<>();
         LocalDate today = LocalDate.now();
 
-        // ✅ FIX BUG: Gộp tổng số lượng theo ID sản phẩm trước khi check tồn kho
         Map<Integer, Integer> totalQtyMap = new HashMap<>();
         for (OrderItemRequest itemReq : req.getItems()) {
             if (itemReq.getIdChiTietSanPham() == null) continue;
@@ -341,24 +355,43 @@ public class ClientOrderService {
             totalQtyMap.merge(itemReq.getIdChiTietSanPham(), itemReq.getSoLuong(), Integer::sum);
         }
 
-        // Check tồn kho dựa trên tổng số lượng
+        Map<Integer, ChiTietSanPham> ctspMap = new HashMap<>();
         for (Map.Entry<Integer, Integer> entry : totalQtyMap.entrySet()) {
             Integer ctspId = entry.getKey();
             Integer totalQty = entry.getValue();
 
-            ChiTietSanPham ctsp = ctspRepo.findByIdAndXoaMemFalse(ctspId)
-                    .orElseThrow(() -> new BadRequestEx("Sản phẩm không tồn tại id=" + ctspId));
+            ChiTietSanPham ctsp = requireCtspBanDuoc(ctspId);
+            ctspMap.put(ctspId, ctsp);
 
-            if (ctsp.getSoLuong() < totalQty) {
-                // ✅ FIX LỖI BIÊN DỊCH: Gọi getSanPham() trước khi getTenSanPham()
+            int tonKho = ctsp.getSoLuong() == null ? 0 : ctsp.getSoLuong();
+            if (tonKho < totalQty) {
                 String tenSp = (ctsp.getSanPham() != null) ? ctsp.getSanPham().getTenSanPham() : "Sản phẩm";
-                throw new BadRequestEx("Sản phẩm " + tenSp + " không đủ hàng (Yêu cầu: " + totalQty + ", Tồn: " + ctsp.getSoLuong() + ")");
+                throw new BadRequestEx("Sản phẩm " + tenSp + " không đủ hàng (Yêu cầu: " + totalQty + ", Tồn: " + tonKho + ")");
             }
         }
 
         for (OrderItemRequest itemReq : req.getItems()) {
-            ChiTietSanPham ctsp = ctspRepo.findById(itemReq.getIdChiTietSanPham()).orElseThrow();
+            Integer ctspId = itemReq.getIdChiTietSanPham();
+            Integer soLuong = itemReq.getSoLuong();
+
+            if (ctspId == null) {
+                throw new BadRequestEx("Thiếu idChiTietSanPham");
+            }
+            if (soLuong == null || soLuong <= 0) {
+                throw new BadRequestEx("Số lượng phải lớn hơn 0");
+            }
+
+            ChiTietSanPham ctsp = ctspMap.get(ctspId);
+            if (ctsp == null) {
+                ctsp = requireCtspBanDuoc(ctspId);
+                ctspMap.put(ctspId, ctsp);
+            }
+
             BigDecimal price = ctsp.getGiaBan() != null ? ctsp.getGiaBan() : ctsp.getGiaNiemYet();
+            if (price == null) {
+                price = BigDecimal.ZERO;
+            }
+
             Optional<ChiTietDotGiamGiaRepository.BestDotGiamGiaView> bestDiscountOrder =
                     chiTietDotGiamGiaRepo.findBestActiveDotByCtspId(ctsp.getId(), today);
 
@@ -368,16 +401,15 @@ public class ClientOrderService {
                         BigDecimal.ONE.subtract(
                                 pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
                         )
-                )
-                        .setScale(0, RoundingMode.HALF_UP);
+                ).setScale(0, RoundingMode.HALF_UP);
             }
 
-            BigDecimal subTotal = price.multiply(BigDecimal.valueOf(itemReq.getSoLuong()));
+            BigDecimal subTotal = price.multiply(BigDecimal.valueOf(soLuong));
             tongTien = tongTien.add(subTotal);
 
             HoaDonChiTiet hdct = HoaDonChiTiet.builder()
                     .idChiTietSanPham(ctsp.getId())
-                    .soLuong(itemReq.getSoLuong())
+                    .soLuong(soLuong)
                     .donGia(price)
                     .xoaMem(false)
                     .build();
@@ -440,7 +472,7 @@ public class ClientOrderService {
                 GhnTinhPhiResponse ghnRes = ghnService.tinhPhiVanChuyen(ghnReq);
                 phiVanChuyen = BigDecimal.valueOf(ghnRes.getTotal());
             } catch (Exception e) {
-                phiVanChuyen = new BigDecimal("40000"); // fallback nếu GHN lỗi
+                phiVanChuyen = new BigDecimal("40000");
             }
         } else {
             phiVanChuyen = new BigDecimal("40000");
@@ -472,11 +504,9 @@ public class ClientOrderService {
             hdctRepo.save(item);
         }
 
-        // ✅ FIX BUG: Xác định phương thức thanh toán (ID) từ loaiThanhToan (0/1) hoặc idPhuongThucThanhToan
         Integer ptttId = req.getIdPhuongThucThanhToan();
-        Integer loaiThanhToan = req.getLoaiThanhToan(); // 0: COD, 1: VNPay/Chuyển khoản
+        Integer loaiThanhToan = req.getLoaiThanhToan();
 
-        // 🔍 DEBUG LOG
         System.out.println("=== CREATE ORDER DEBUG ===");
         System.out.println("loaiThanhToan: " + loaiThanhToan);
         System.out.println("idPhuongThucThanhToan: " + ptttId);
@@ -489,7 +519,6 @@ public class ClientOrderService {
             }
 
             if (loaiThanhToan == null || loaiThanhToan == 0) {
-                // Fallback: COD/Tiền mặt (mặc định)
                 for (PhuongThucThanhToan p : allPttt) {
                     String name = p.getTenPhuongThucThanhToan().toUpperCase();
                     if (name.contains("TIỀN MẶT") || name.contains("COD")) {
@@ -499,18 +528,15 @@ public class ClientOrderService {
                     }
                 }
             } else if (loaiThanhToan == 1) {
-                // VNPay/Chuyển khoản: tìm VNPAY hoặc CHUYỂN KHOÁN (case insensitive)
                 for (PhuongThucThanhToan p : allPttt) {
                     String name = p.getTenPhuongThucThanhToan();
                     String nameUpper = name.toUpperCase();
-                    // ⚠️ Match case-insensitive: VNPAY, VNPay, vnpay, CHUYỂN KHOÁN, chuyển khoán, etc.
                     if (nameUpper.contains("VNPAY") || nameUpper.contains("CHUYỂN KHOÁN") || nameUpper.contains("BANKING") || nameUpper.contains("CHUYỂN")) {
                         System.out.println("✅ Tìm thấy VNPAY method: " + name + " (ID=" + p.getId() + ")");
                         ptttId = p.getId();
                         break;
                     }
                 }
-                // ⚠️ Nếu khách chọn VNPay (1) mà không tìm thấy ID phương thức -> Báo lỗi ngay
                 if (ptttId == null) {
                     System.out.println("❌ ERROR: Không tìm thấy phương thức VNPAY/CHUYỂN KHOÁN!");
                     System.out.println("Danh sách phương thức hiện có:");
@@ -522,8 +548,6 @@ public class ClientOrderService {
             }
         }
 
-        // ✅ Tạo giao dịch thanh toán ngay để đánh dấu loại đơn
-        // ⚠️ QUAN TRỌNG: Phải có GiaoDichThanhToan để isDonChuyenKhoan() hoạt động đúng
         if (ptttId != null) {
             GiaoDichThanhToan gd = new GiaoDichThanhToan();
             gd.setIdHoaDon(hd.getId());
@@ -538,7 +562,6 @@ public class ClientOrderService {
             giaoDichThanhToanRepo.save(gd);
             System.out.println("✅ Saved GiaoDichThanhToan: id=" + gd.getId() + ", ptttId=" + ptttId);
         } else {
-            // ⚠️ Fallback: Nếu vẫn không tìm được phương thức, tạo COD mặc định
             List<PhuongThucThanhToan> allPttt = phuongThucThanhToanRepo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
             for (PhuongThucThanhToan p : allPttt) {
                 String name = p.getTenPhuongThucThanhToan().toUpperCase();
@@ -567,7 +590,6 @@ public class ClientOrderService {
                 .build();
         lsHdRepo.save(ls);
 
-        // ⚠️ QUAN TRỌNG: Flush để đảm bảo GiaoDichThanhToan được lưu vào DB ngay
         entityManager.flush();
         entityManager.refresh(hd);
 
@@ -583,7 +605,15 @@ public class ClientOrderService {
     }
 
     private ProductClientDTO mapToProductClientDTO(SanPham sp) {
-        List<ChiTietSanPham> variants = ctspRepo.findAllByIdSanPhamAndXoaMemFalseOrderByIdDesc(sp.getId());
+        if (sp == null || !Boolean.TRUE.equals(sp.getTrangThaiKinhDoanh())) {
+            return null;
+        }
+
+        List<ChiTietSanPham> variants = getSaleableVariantsBySanPhamId(sp.getId());
+        if (variants.isEmpty()) {
+            return null;
+        }
+
         LocalDate today = LocalDate.now();
 
         String thumb = null;
@@ -619,8 +649,7 @@ public class ClientOrderService {
                         BigDecimal.ONE.subtract(
                                 pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
                         )
-                )
-                        .setScale(0, RoundingMode.HALF_UP);
+                ).setScale(0, RoundingMode.HALF_UP);
                 phanTramGiam = pct.intValue();
             }
 
@@ -699,7 +728,11 @@ public class ClientOrderService {
     }
 
     private ProductDetailClientDTO mapToProductDetailClientDTO(SanPham sp) {
-        List<ChiTietSanPham> variants = ctspRepo.findAllByIdSanPhamAndXoaMemFalseOrderByIdDesc(sp.getId());
+        List<ChiTietSanPham> variants = getSaleableVariantsBySanPhamId(sp.getId());
+        if (variants.isEmpty()) {
+            throw new NotFoundEx("Sản phẩm không còn kinh doanh");
+        }
+
         LocalDate today = LocalDate.now();
 
         String thumb = null;
@@ -742,8 +775,7 @@ public class ClientOrderService {
                         BigDecimal.ONE.subtract(
                                 pct.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP)
                         )
-                )
-                        .setScale(0, RoundingMode.HALF_UP);
+                ).setScale(0, RoundingMode.HALF_UP);
                 phanTramGiam = pct.intValue();
             }
 
@@ -805,6 +837,32 @@ public class ClientOrderService {
                 .images(new ArrayList<>(imgSet))
                 .variants(variantDTOs)
                 .build();
+    }
+
+    private List<ChiTietSanPham> getSaleableVariantsBySanPhamId(Integer sanPhamId) {
+        List<ChiTietSanPham> variants = ctspRepo.findAllByIdSanPhamAndXoaMemFalseOrderByIdDesc(sanPhamId);
+        if (variants == null || variants.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<ChiTietSanPham> saleable = new ArrayList<>();
+        for (ChiTietSanPham v : variants) {
+            if (v == null || v.getId() == null) continue;
+            if (ctspRepo.existsBanDuoc(v.getId())) {
+                saleable.add(v);
+            }
+        }
+        return saleable;
+    }
+
+    private ChiTietSanPham requireCtspBanDuoc(Integer ctspId) {
+        ChiTietSanPham ctsp = ctspRepo.findByIdAndXoaMemFalse(ctspId)
+                .orElseThrow(() -> new BadRequestEx("Sản phẩm không tồn tại id=" + ctspId));
+
+        if (!ctspRepo.existsBanDuoc(ctspId)) {
+            throw new BadRequestEx("Sản phẩm hiện đã ngừng kinh doanh hoặc thuộc tính đi kèm đã ngừng hoạt động");
+        }
+        return ctsp;
     }
 
     private String getFullUrl(String path) {
