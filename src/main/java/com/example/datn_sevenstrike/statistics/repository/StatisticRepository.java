@@ -179,4 +179,45 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    @Query(value = """
+    SELECT 
+        sp.ten_san_pham AS product_name,
+
+        COALESCE(stock.stock_quantity,0) AS stock_quantity,
+
+        COALESCE(sold.sold_quantity,0) AS sold_quantity
+
+    FROM san_pham sp
+
+    -- tồn kho hiện tại
+    LEFT JOIN (
+        SELECT 
+            id_san_pham,
+            SUM(so_luong) AS stock_quantity
+        FROM chi_tiet_san_pham
+        GROUP BY id_san_pham
+    ) stock
+    ON sp.id = stock.id_san_pham
+
+    -- bán trong quý
+    LEFT JOIN (
+        SELECT 
+            ctsp.id_san_pham,
+            SUM(ct.so_luong) AS sold_quantity
+        FROM hoa_don_chi_tiet ct
+        JOIN hoa_don hd
+            ON hd.id = ct.id_hoa_don
+        JOIN chi_tiet_san_pham ctsp
+            ON ctsp.id = ct.id_chi_tiet_san_pham
+        WHERE hd.xoa_mem = 0
+          AND DATEPART(YEAR, hd.ngay_tao) = DATEPART(YEAR, GETDATE())
+          AND DATEPART(QUARTER, hd.ngay_tao) = DATEPART(QUARTER, GETDATE())
+        GROUP BY ctsp.id_san_pham
+    ) sold
+    ON sp.id = sold.id_san_pham
+
+    WHERE sp.xoa_mem = 0
+    """, nativeQuery = true)
+    List<Object[]> getProductInventoryQuarter();
 }

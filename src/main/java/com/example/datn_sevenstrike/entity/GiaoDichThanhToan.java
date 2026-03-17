@@ -43,19 +43,21 @@ public class GiaoDichThanhToan {
     @Column(name = "ma_tham_chieu", length = 100)
     private String maThamChieu;
 
-    @Column(name = "duong_dan_thanh_toan", length = 500)
+    @Lob
+    @Column(name = "duong_dan_thanh_toan", columnDefinition = "nvarchar(max)")
     private String duongDanThanhToan;
 
-    @Column(name = "du_lieu_qr")
+    @Lob
+    @Column(name = "du_lieu_qr", columnDefinition = "nvarchar(max)")
     private String duLieuQr;
 
     @Column(name = "thoi_gian_het_han")
     private LocalDateTime thoiGianHetHan;
 
-    @Column(name = "du_lieu_phan_hoi")
+    @Lob
+    @Column(name = "du_lieu_phan_hoi", columnDefinition = "nvarchar(max)")
     private String duLieuPhanHoi;
 
-    // ✅ DB default sysdatetime() -> để DB tự set
     @Column(name = "thoi_gian_tao", insertable = false, updatable = false)
     private LocalDateTime thoiGianTao;
 
@@ -68,7 +70,6 @@ public class GiaoDichThanhToan {
     @Column(name = "xoa_mem", nullable = false)
     private Boolean xoaMem;
 
-    // ✅ NEW: lưu ai thao tác (đồng bộ tên cột với hệ thống)
     @Column(name = "nguoi_cap_nhat")
     private Integer nguoiCapNhat;
 
@@ -82,7 +83,6 @@ public class GiaoDichThanhToan {
     @ToString.Exclude
     private PhuongThucThanhToan phuongThucThanhToan;
 
-    // ✅ Optional: join ra nhân viên để lấy tên/mã nếu muốn
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "nguoi_cap_nhat", insertable = false, updatable = false)
     @ToString.Exclude

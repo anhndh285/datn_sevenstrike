@@ -6,16 +6,19 @@ import com.example.datn_sevenstrike.statistics.repository.StatisticRepository;
 import com.example.datn_sevenstrike.statistics.response.DetailStatisticResponse;
 import com.example.datn_sevenstrike.statistics.response.MiniCardResponse;
 import com.example.datn_sevenstrike.statistics.response.OrderStatusResponse;
+import com.example.datn_sevenstrike.statistics.response.ProductInventoryStatusResponse;
 import com.example.datn_sevenstrike.statistics.response.RevenueChartResponse;
 import com.example.datn_sevenstrike.statistics.response.TopProductResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -166,6 +169,14 @@ public class StatisticService {
                 tieuDe = "NGÀY";
                 break;
 
+            case "WEEK":
+
+                from = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                to = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
+                tieuDe = "TUẦN";
+                break;
+
             case "MONTH":
                 from = today.withDayOfMonth(1);
                 tieuDe = "THÁNG";
@@ -293,6 +304,50 @@ public class StatisticService {
         }
 
         System.out.println("Đã gửi báo cáo theo " + tieuDe + " cho ADMIN");
+    }
+
+    public List<ProductInventoryStatusResponse> getProductInventoryStatus() {
+
+        List<Object[]> data = repository.getProductInventoryQuarter();
+        List<ProductInventoryStatusResponse> result = new ArrayList<>();
+
+        for (Object[] row : data) {
+
+            String productName = (String) row[0];
+            int stockQty = ((Number) row[1]).intValue();
+            int soldQty = ((Number) row[2]).intValue();
+
+            // nhập ban đầu ≈ tồn + bán
+            int importQty = stockQty + soldQty;
+
+            double rate = 0;
+            if (importQty > 0) {
+                rate = (soldQty * 100.0) / importQty;
+            }
+
+            rate = Math.round(rate);
+
+            String status;
+
+            if (rate >= 80) {
+                status = "BAN_CHAY";
+            } else if (rate >= 40) {
+                status = "BINH_THUONG";
+            } else {
+                status = "TON_KHO_NHIEU";
+            }
+
+            ProductInventoryStatusResponse res = new ProductInventoryStatusResponse();
+            res.setProductName(productName);
+            res.setImportQuarter(importQty);
+            res.setSoldQuarter(soldQty);
+            res.setSellRate(rate);
+            res.setStatus(status);
+
+            result.add(res);
+        }
+
+        return result;
     }
 }
 

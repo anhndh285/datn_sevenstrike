@@ -17,6 +17,12 @@ public class RevenueScheduler {
         statisticService.autoExportRevenue("DAY");
     }
 
+    // Cuối tuần (Chủ nhật 23:59)
+    @Scheduled(cron = "0 59 23 ? * SUN", zone = "Asia/Ho_Chi_Minh")
+    public void weeklyReport() {
+        statisticService.autoExportRevenue("WEEK");
+    }
+
     // Cuối tháng
     @Scheduled(cron = "0 59 23 L * ?", zone = "Asia/Ho_Chi_Minh")
     public void monthlyReport() {

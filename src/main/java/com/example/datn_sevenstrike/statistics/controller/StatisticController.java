@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/statistic")
@@ -86,5 +87,20 @@ public class StatisticController {
     ) {
         Long revenue = service.getExpectedRevenue(fromDate, toDate);
         return ResponseEntity.ok(revenue);
+    }
+
+    @PostMapping("/send-report")
+    public ResponseEntity<?> sendReport(@RequestBody Map<String, String> body) {
+
+        String type = body.get("type");
+
+        service.autoExportRevenue(type);
+
+        return ResponseEntity.ok("Đã gửi báo cáo");
+    }
+
+    @GetMapping("/product-inventory-status")
+    public ResponseEntity<?> getProductInventoryStatus() {
+        return ResponseEntity.ok(service.getProductInventoryStatus());
     }
 }
