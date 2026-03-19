@@ -313,23 +313,29 @@ public class StatisticService {
 
         for (Object[] row : data) {
 
-            String productName = (String) row[0];
-            int stockQty = ((Number) row[1]).intValue();
-            int soldQty = ((Number) row[2]).intValue();
+            String productCode = (String) row[0];
+            String productDetailCode = (String) row[1];
+            String productName = (String) row[2];
+            String color = (String) row[3];
+            String size = (String) row[4];
+            String surface = (String) row[5];
 
-            // nhập ban đầu ≈ tồn + bán
-            int importQty = stockQty + soldQty;
+            Double price = ((Number) row[6]).doubleValue();
+
+            int importQty = ((Number) row[7]).intValue();
+            int soldQty = row[8] == null ? 0 : ((Number) row[8]).intValue();
 
             double rate = 0;
+
             if (importQty > 0) {
                 rate = (soldQty * 100.0) / importQty;
             }
 
-            rate = Math.round(rate);
+            rate = Math.round(rate * 100.0) / 100.0;
 
             String status;
 
-            if (rate >= 80) {
+            if (rate >= 60) {
                 status = "BAN_CHAY";
             } else if (rate >= 40) {
                 status = "BINH_THUONG";
@@ -338,7 +344,14 @@ public class StatisticService {
             }
 
             ProductInventoryStatusResponse res = new ProductInventoryStatusResponse();
+
+            res.setProductCode(productCode);
+            res.setProductDetailCode(productDetailCode);
             res.setProductName(productName);
+            res.setColor(color);
+            res.setSize(size);
+            res.setSurface(surface);
+            res.setPrice(price);
             res.setImportQuarter(importQty);
             res.setSoldQuarter(soldQty);
             res.setSellRate(rate);
@@ -349,30 +362,5 @@ public class StatisticService {
 
         return result;
     }
+
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

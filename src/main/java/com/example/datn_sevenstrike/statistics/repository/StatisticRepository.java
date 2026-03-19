@@ -181,43 +181,70 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
     );
 
     @Query(value = """
-    SELECT 
-        sp.ten_san_pham AS product_name,
 
-        COALESCE(stock.stock_quantity,0) AS stock_quantity,
+SELECT
+    sp.ma_san_pham AS productCode,
 
-        COALESCE(sold.sold_quantity,0) AS sold_quantity
+    ctsp.ma_chi_tiet_san_pham AS productDetailCode,   -- ✅ MÃ CTSP
 
-    FROM san_pham sp
+    sp.ten_san_pham AS productName,
 
-    -- tồn kho hiện tại
-    LEFT JOIN (
-        SELECT 
-            id_san_pham,
-            SUM(so_luong) AS stock_quantity
-        FROM chi_tiet_san_pham
-        GROUP BY id_san_pham
-    ) stock
-    ON sp.id = stock.id_san_pham
+    ms.ten_mau_sac AS color,
 
-    -- bán trong quý
-    LEFT JOIN (
-        SELECT 
-            ctsp.id_san_pham,
-            SUM(ct.so_luong) AS sold_quantity
-        FROM hoa_don_chi_tiet ct
-        JOIN hoa_don hd
-            ON hd.id = ct.id_hoa_don
-        JOIN chi_tiet_san_pham ctsp
-            ON ctsp.id = ct.id_chi_tiet_san_pham
-        WHERE hd.xoa_mem = 0
-          AND DATEPART(YEAR, hd.ngay_tao) = DATEPART(YEAR, GETDATE())
-          AND DATEPART(QUARTER, hd.ngay_tao) = DATEPART(QUARTER, GETDATE())
-        GROUP BY ctsp.id_san_pham
-    ) sold
-    ON sp.id = sold.id_san_pham
+    kt.ten_kich_thuoc AS size,
 
-    WHERE sp.xoa_mem = 0
-    """, nativeQuery = true)
+    ls.ten_loai_san AS surface,
+
+    ctsp.gia_ban AS price,
+
+    COALESCE(ctsp.so_luong,0) AS importQuantity,      -- ✅ NHẬP
+
+    COALESCE(sold.sold_quantity,0) AS soldQuantity,   -- ✅ BÁN
+
+    CASE
+        WHEN ctsp.so_luong = 0 THEN 0
+        ELSE ROUND((COALESCE(sold.sold_quantity,0) * 100.0) / ctsp.so_luong,2)
+    END AS sellRate
+
+FROM chi_tiet_san_pham ctsp
+
+JOIN san_pham sp
+    ON ctsp.id_san_pham = sp.id
+
+LEFT JOIN mau_sac ms
+    ON ctsp.id_mau_sac = ms.id
+
+LEFT JOIN kich_thuoc kt
+    ON ctsp.id_kich_thuoc = kt.id
+
+LEFT JOIN loai_san ls
+    ON ctsp.id_loai_san = ls.id
+
+LEFT JOIN (
+
+    SELECT
+        ct.id_chi_tiet_san_pham,
+        SUM(ct.so_luong) AS sold_quantity
+
+    FROM hoa_don_chi_tiet ct
+
+    JOIN hoa_don hd
+        ON hd.id = ct.id_hoa_don
+
+    WHERE hd.xoa_mem = 0
+      AND DATEPART(YEAR, hd.ngay_tao) = DATEPART(YEAR, GETDATE())
+      AND DATEPART(QUARTER, hd.ngay_tao) = DATEPART(QUARTER, GETDATE())
+
+    GROUP BY ct.id_chi_tiet_san_pham
+
+) sold
+    ON ctsp.id = sold.id_chi_tiet_san_pham
+
+WHERE sp.xoa_mem = 0
+  AND ctsp.xoa_mem = 0
+
+ORDER BY sp.ma_san_pham
+
+""", nativeQuery = true)
     List<Object[]> getProductInventoryQuarter();
 }

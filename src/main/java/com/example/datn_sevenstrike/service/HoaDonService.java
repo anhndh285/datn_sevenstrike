@@ -11,6 +11,7 @@ import com.example.datn_sevenstrike.entity.*;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.*;
+import com.example.datn_sevenstrike.service.client.EmailService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
@@ -58,6 +59,7 @@ public class HoaDonService {
 
     private final GiaoCaRepository giaoCaRepo;
     private final ModelMapper mapper;
+    private final EmailService emailService;
 
     @PersistenceContext
     private EntityManager em;
@@ -111,6 +113,24 @@ public class HoaDonService {
         if (!ma.isBlank() && !tk.isBlank()) return ma + " - " + tk;
         if (!ma.isBlank()) return ma;
         return "";
+    }
+
+    private void guiMailXacNhanNeuCo(HoaDon hd) {
+        try {
+            if (hd == null) return;
+
+            String email = hd.getEmailKhachHang();
+            if (email == null || email.isBlank()) return;
+
+            emailService.sendOrderConfirmation(hd);
+        } catch (Exception e) {
+            System.out.println(
+                    "Gửi mail xác nhận thất bại cho hóa đơn id="
+                            + (hd != null ? hd.getId() : null)
+                            + ": "
+                            + e.getMessage()
+            );
+        }
     }
 
     // =========================================================
@@ -442,7 +462,6 @@ public class HoaDonService {
             throw new BadRequestEx("Đơn đã kết thúc, không thể cập nhật thông tin");
         }
 
-        // FE sync theo snapshot => phải cho clear null
         hd.setIdKhachHang(req.getIdKhachHang());
         hd.setIdNhanVien(req.getIdNhanVien());
 
@@ -598,7 +617,6 @@ public class HoaDonService {
                 .mapToInt(Integer::intValue)
                 .sum();
 
-        // POS draft được phép rỗng giỏ
         if (totalFinalQty <= 0) {
             if (!coTheDeTrongChiTietKhiUpsert(hd)) {
                 throw new BadRequestEx("Hóa đơn phải có ít nhất 1 sản phẩm");
@@ -870,6 +888,8 @@ public class HoaDonService {
                 note == null ? "Chốt đơn tại quầy" : note,
                 nguoiCapNhat);
 
+        guiMailXacNhanNeuCo(saved);
+
         return toResponse(saved);
     }
 
@@ -926,9 +946,6 @@ public class HoaDonService {
             throw new BadRequestEx("Hóa đơn chưa có sản phẩm, không thể xác nhận thanh toán");
         }
 
-        // Nếu đơn online/giao hàng đang chờ xác nhận mà không còn đủ hàng:
-        // - online => tự động hủy + báo "Sản phẩm hiện đã hết hàng" hoặc đã ngừng bán
-        // - giao hàng => chặn xác nhận và yêu cầu hủy
         xuLyThieuTonKhoKhiXacNhanDon(hd);
 
         BigDecimal tongTienHang = tongTienHangTuChiTiet(items);
@@ -1059,6 +1076,8 @@ public class HoaDonService {
 
         pushHistory(saved.getId(), saved.getTrangThaiHienTai(), noiDungLichSu, nguoiCapNhat);
 
+        guiMailXacNhanNeuCo(saved);
+
         return toResponse(saved);
     }
 
@@ -1112,7 +1131,6 @@ public class HoaDonService {
             }
         }
 
-        // Nếu rời khỏi trạng thái chờ xác nhận thì bắt buộc kiểm tra tồn / trạng thái bán được.
         if (!newStatus.equals(TrangThaiHoaDon.DA_HUY.code)
                 && Integer.valueOf(TrangThaiHoaDon.CHUA_XAC_NHAN.code).equals(oldStatus)
                 && !Integer.valueOf(TrangThaiHoaDon.CHUA_XAC_NHAN.code).equals(newStatus)) {
@@ -1307,8 +1325,6 @@ public class HoaDonService {
             throw new BadRequestEx("Chỉ được hủy hóa đơn khi hóa đơn có sản phẩm");
         }
 
-        // Tại quầy / giao hàng: trước đó đã trừ tồn khi thêm SP => hủy thì hoàn tồn
-        // Online: theo case của bạn, không hoàn tồn khi auto-hủy/hủy ở trạng thái chờ xác nhận
         if (loaiDon != LOAI_DON_ONLINE) {
             for (HoaDonChiTiet ct : items) {
                 Integer ctspId = ct.getIdChiTietSanPham();
