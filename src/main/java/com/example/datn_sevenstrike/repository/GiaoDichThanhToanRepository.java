@@ -39,4 +39,23 @@ public interface GiaoDichThanhToanRepository extends JpaRepository<GiaoDichThanh
          where id_hoa_don = :idHoaDon
     """, nativeQuery = true)
     int deleteHardByIdHoaDon(@Param("idHoaDon") Integer idHoaDon);
+
+    // Lấy lịch sử thanh toán tiền mặt không thuộc giao ca
+    @Query(value = """
+        select gd.*
+        from dbo.giao_dich_thanh_toan gd
+        inner join dbo.hoa_don hd
+            on hd.id = gd.id_hoa_don
+           and hd.xoa_mem = 0
+        inner join dbo.phuong_thuc_thanh_toan pt
+            on pt.id = gd.id_phuong_thuc_thanh_toan
+           and pt.xoa_mem = 0
+        where gd.xoa_mem = 0
+          and lower(ltrim(rtrim(gd.trang_thai))) = 'thanh_cong'
+          and pt.ten_phuong_thuc_thanh_toan = N'Tiền mặt'
+          and hd.id_giao_ca is null
+          and gd.nguoi_cap_nhat is not null
+        order by gd.thoi_gian_tao desc, gd.id desc
+    """, nativeQuery = true)
+    List<GiaoDichThanhToan> findAdminCashHistory();
 }

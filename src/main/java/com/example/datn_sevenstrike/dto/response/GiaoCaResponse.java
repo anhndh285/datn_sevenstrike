@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/dto/response/GiaoCaResponse.java
 package com.example.datn_sevenstrike.dto.response;
 
 import lombok.*;
@@ -26,7 +27,7 @@ public class GiaoCaResponse {
     private Integer nguoiCapNhat;
 
     // ==========================================
-    // ✅ CÁC BIẾN BỔ SUNG ĐỂ HIỂN THỊ LÊN GIAO DIỆN
+    // CÁC BIẾN BỔ SUNG ĐỂ HIỂN THỊ LÊN GIAO DIỆN
     // ==========================================
     private String tenNhanVien;
     private String tenCaLam;
@@ -37,4 +38,11 @@ public class GiaoCaResponse {
     private BigDecimal tongTienTrongCa;
     private BigDecimal tienMatTrongCa;
     private BigDecimal tienChuyenKhoanTrongCa;
+
+    // ==========================================
+    // BỔ SUNG CHO LỊCH SỬ TỔNG HỢP
+    // ==========================================
+    private String loaiBanGhi;           // GIAO_CA | ADMIN_CASH
+    private String maHoaDon;             // dùng cho dòng admin cash
+    private LocalDateTime thoiGianPhatSinh; // dùng để sort chung 2 loại bản ghi
 }

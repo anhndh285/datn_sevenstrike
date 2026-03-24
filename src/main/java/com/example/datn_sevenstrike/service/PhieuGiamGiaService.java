@@ -1,3 +1,4 @@
+// File: src/main/java/com/example/datn_sevenstrike/service/PhieuGiamGiaService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.GuiMailPhieuGiamGiaRequest;
@@ -36,8 +37,17 @@ public class PhieuGiamGiaService {
 
     private final VoucherEmailService voucherEmailService;
 
-    public List<PhieuGiamGiaResponse> all() {
-        return repo.findAllByXoaMemFalseOrderByIdDesc()
+    public List<PhieuGiamGiaResponse> all(
+            String keyword,
+            LocalDate ngayBatDau,
+            LocalDate ngayKetThuc,
+            Boolean trangThai
+    ) {
+        validateFilterDates(ngayBatDau, ngayKetThuc);
+
+        String keywordNormalized = normalizeKeyword(keyword);
+
+        return repo.search(keywordNormalized, ngayBatDau, ngayKetThuc, trangThai)
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -89,7 +99,6 @@ public class PhieuGiamGiaService {
         PhieuGiamGia db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
 
-        // ✅ fingerprint trước khi update (để biết có đổi nội dung mail không)
         String beforeFp = buildMailFingerprint(db);
 
         boolean dbIsCaNhan = hasAnyAliveCaNhan(id);
@@ -154,7 +163,6 @@ public class PhieuGiamGiaService {
             chiTietRepo.deleteByPhieuGiamGia(saved);
         }
 
-        // ✅ nếu nội dung voucher thay đổi => reset trạng thái đã gửi để mail update được gửi lại
         String afterFp = buildMailFingerprint(saved);
         boolean noiDungMailThayDoi = !Objects.equals(beforeFp, afterFp);
 
@@ -198,8 +206,6 @@ public class PhieuGiamGiaService {
                 .toList();
     }
 
-    // ========================= API phục vụ FE =========================
-
     public List<Integer> getKhachHangDaGuiIds(Integer voucherId) {
         repo.findByIdAndXoaMemFalse(voucherId)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy phiếu giảm giá"));
@@ -231,7 +237,6 @@ public class PhieuGiamGiaService {
 
             LocalDateTime thoiGianGui = LocalDateTime.now();
 
-            // ✅ reserve trước để chặn gửi trùng (double click / request song song)
             int reserved = caNhanRepo.markDaGuiMailNeuChuaGui(voucherId, idKh, thoiGianGui);
             if (reserved <= 0) {
                 boQua++;
@@ -254,8 +259,6 @@ public class PhieuGiamGiaService {
                 .build();
     }
 
-    // ========================= Helpers =========================
-
     private boolean isCaNhan(PhieuGiamGiaRequest req, List<Integer> ids) {
         return req != null && req.getIdKhachHangs() != null && ids != null && !ids.isEmpty();
     }
@@ -275,10 +278,21 @@ public class PhieuGiamGiaService {
                 .collect(Collectors.toList());
     }
 
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) return null;
+        String value = keyword.trim();
+        return value.isBlank() ? null : value;
+    }
+
+    private void validateFilterDates(LocalDate ngayBatDau, LocalDate ngayKetThuc) {
+        if (ngayBatDau != null && ngayKetThuc != null && ngayBatDau.isAfter(ngayKetThuc)) {
+            throw new BadRequestEx("Ngày bắt đầu lọc không được lớn hơn ngày kết thúc lọc");
+        }
+    }
+
     private void applyDefaults(PhieuGiamGia e) {
         if (e.getXoaMem() == null) e.setXoaMem(false);
 
-        // false= % ; true= tiền
         if (e.getLoaiPhieuGiamGia() == null) e.setLoaiPhieuGiamGia(false);
 
         if (e.getTrangThai() == null) e.setTrangThai(true);
@@ -329,10 +343,6 @@ public class PhieuGiamGiaService {
         }
     }
 
-    /**
-     * ✅ Preserve da_gui_mail/ngay_gui_mail khi đổi danh sách KH:
-     * - Không reset trạng thái đã gửi
-     */
     private void replaceVoucherCaNhan(Integer voucherId, List<Integer> idKhachHangs) {
         List<Integer> ids = normalizeCustomerIds(idKhachHangs);
 
@@ -410,7 +420,6 @@ public class PhieuGiamGiaService {
         return mapper.map(e, PhieuGiamGiaResponse.class);
     }
 
-    // ✅ Fingerprint cho nội dung mail (đổi => gửi lại)
     private String buildMailFingerprint(PhieuGiamGia p) {
         return String.join("|",
                 safeStr(p != null ? p.getTenPhieuGiamGia() : null),

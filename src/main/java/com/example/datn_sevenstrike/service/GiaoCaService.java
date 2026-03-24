@@ -1,26 +1,32 @@
+// File: src/main/java/com/example/datn_sevenstrike/service/GiaoCaService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.GiaoCaRequest;
 import com.example.datn_sevenstrike.dto.response.GiaoCaResponse;
 import com.example.datn_sevenstrike.entity.GiaoCa;
+import com.example.datn_sevenstrike.entity.GiaoDichThanhToan;
 import com.example.datn_sevenstrike.entity.LichLamViec;
 import com.example.datn_sevenstrike.entity.NhanVien;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.GiaoCaRepository;
+import com.example.datn_sevenstrike.repository.GiaoDichThanhToanRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecNhanVienRepository;
 import com.example.datn_sevenstrike.repository.LichLamViecRepository;
 import com.example.datn_sevenstrike.repository.NhanVienRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -28,14 +34,49 @@ import java.util.Optional;
 public class GiaoCaService {
 
     private final GiaoCaRepository giaoCaRepo;
+    private final GiaoDichThanhToanRepository giaoDichThanhToanRepo;
     private final LichLamViecRepository lichLamViecRepo;
     private final LichLamViecNhanVienRepository lichLamViecNhanVienRepo;
     private final NhanVienRepository nhanVienRepo;
 
     @Transactional(readOnly = true)
     public Page<GiaoCaResponse> getPage(int pageNo, int pageSize) {
-        Pageable pageable = PageRequest.of(pageNo, pageSize, Sort.by(Sort.Direction.DESC, "thoiGianNhanCa"));
-        return giaoCaRepo.findAll(pageable).map(this::mapToResponse);
+        List<GiaoCaResponse> allRows = new ArrayList<>();
+
+        // 1) Lấy toàn bộ lịch sử giao ca như cũ
+        List<GiaoCaResponse> giaoCaRows = giaoCaRepo
+                .findAll(Sort.by(Sort.Direction.DESC, "thoiGianNhanCa"))
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+
+        allRows.addAll(giaoCaRows);
+
+        // 2) Lấy thêm lịch sử admin thu tiền mặt ngoài ca
+        List<GiaoCaResponse> adminCashRows = giaoDichThanhToanRepo
+                .findAdminCashHistory()
+                .stream()
+                .map(this::mapAdminCashToResponse)
+                .toList();
+
+        allRows.addAll(adminCashRows);
+
+        // 3) Sort chung theo thời gian phát sinh giảm dần
+        allRows.sort(
+                Comparator.comparing(
+                        GiaoCaResponse::getThoiGianPhatSinh,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                )
+        );
+
+        // 4) Phân trang thủ công sau khi merge 2 nguồn dữ liệu
+        int start = pageNo * pageSize;
+        int end = Math.min(start + pageSize, allRows.size());
+
+        List<GiaoCaResponse> content =
+                start >= allRows.size() ? List.of() : allRows.subList(start, end);
+
+        return new PageImpl<>(content, PageRequest.of(pageNo, pageSize), allRows.size());
     }
 
     @Transactional(readOnly = true)
@@ -147,10 +188,12 @@ public class GiaoCaService {
                 .ngayCapNhat(entity.getNgayCapNhat())
                 .nguoiTao(entity.getNguoiTao())
                 .nguoiCapNhat(entity.getNguoiCapNhat())
+                .loaiBanGhi("GIAO_CA")
+                .thoiGianPhatSinh(entity.getThoiGianNhanCa() != null ? entity.getThoiGianNhanCa() : entity.getNgayTao())
                 .build();
 
         if (entity.getNhanVien() != null) {
-            res.setTenNhanVien(entity.getNhanVien().getTenNhanVien());
+            res.setTenNhanVien(entity.getNhanVien().getTenTaiKhoan());
         }
 
         if (entity.getLichLamViec() != null && entity.getLichLamViec().getIdCaLam() != null) {
@@ -160,7 +203,6 @@ public class GiaoCaService {
             res.setGioKetThucCa(ca.getGioKetThuc());
         }
 
-        // ✅ ĐÃ MỞ LẠI TOÀN BỘ LOGIC TÍNH TIỀN
         try {
             BigDecimal doanhThu = giaoCaRepo.tinhDoanhThuCa(entity.getId());
             res.setTongTienTrongCa(doanhThu != null ? doanhThu : BigDecimal.ZERO);
@@ -183,5 +225,48 @@ public class GiaoCaService {
         }
 
         return res;
+    }
+
+    private GiaoCaResponse mapAdminCashToResponse(GiaoDichThanhToan gd) {
+        BigDecimal soTien = gd.getSoTien() != null ? gd.getSoTien() : BigDecimal.ZERO;
+
+        String tenNguoiThu = "Admin";
+        if (gd.getNhanVienCapNhat() != null && gd.getNhanVienCapNhat().getTenNhanVien() != null) {
+            tenNguoiThu = gd.getNhanVienCapNhat().getTenTaiKhoan();
+        }
+
+        String maHoaDon = null;
+        if (gd.getHoaDon() != null) {
+            maHoaDon = gd.getHoaDon().getMaHoaDon();
+        }
+
+        return GiaoCaResponse.builder()
+                .id(gd.getId())
+                .maGiaoCa(null)
+                .tienBanGiaoDuKien(BigDecimal.ZERO)
+                .tienDauCaNhap(BigDecimal.ZERO)
+                .daXacNhanTienDauCa(true)
+                .thoiGianNhanCa(gd.getThoiGianTao())
+                .thoiGianKetCa(null)
+                .trangThai(1)
+                .ghiChu("Admin thu tiền mặt" + (maHoaDon != null ? " - " + maHoaDon : ""))
+                .ngayTao(gd.getThoiGianTao())
+                .ngayCapNhat(gd.getThoiGianCapNhat())
+                .nguoiTao(null)
+                .nguoiCapNhat(gd.getNguoiCapNhat())
+
+                .tenNhanVien(tenNguoiThu)
+                .tenCaLam("ADMIN")
+                .gioBatDauCa(null)
+                .gioKetThucCa(null)
+
+                .tongTienTrongCa(soTien)
+                .tienMatTrongCa(soTien)
+                .tienChuyenKhoanTrongCa(BigDecimal.ZERO)
+
+                .loaiBanGhi("ADMIN_CASH")
+                .maHoaDon(maHoaDon)
+                .thoiGianPhatSinh(gd.getThoiGianTao())
+                .build();
     }
 }

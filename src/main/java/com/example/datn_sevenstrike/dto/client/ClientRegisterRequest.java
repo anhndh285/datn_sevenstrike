@@ -7,6 +7,7 @@ import lombok.Setter;
 @Setter
 public class ClientRegisterRequest {
     private String tenKhachHang;
+    private String tenTaiKhoan;
     private String email;
     private String soDienThoai;
     private String matKhau;
