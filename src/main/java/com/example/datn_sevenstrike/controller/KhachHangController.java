@@ -21,6 +21,8 @@ public class KhachHangController {
     private final KhachHangService service;
     private final KhachHangThongKeService thongKeService;
 
+    // ========================= ADMIN =========================
+
     // ✅ Alias cho FE đang gọi /all
     @GetMapping("/all")
     public List<KhachHangResponse> allAlias() {
@@ -41,7 +43,33 @@ public class KhachHangController {
         return service.page(pageNo, pageSize);
     }
 
-    // ✅ chỉ match số để tránh nuốt nhầm 'page', 'all'
+    // ========================= POS =========================
+    // Chỉ lấy khách hàng còn hoạt động
+
+    @GetMapping("/pos")
+    public List<KhachHangResponse> allForPos() {
+        return service.allActiveForPos();
+    }
+
+    @GetMapping("/pos/all")
+    public List<KhachHangResponse> allAliasForPos() {
+        return service.allActiveForPos();
+    }
+
+    @GetMapping("/pos/page")
+    public Page<KhachHangResponse> pageForPos(
+            @RequestParam(defaultValue = "0") int pageNo,
+            @RequestParam(defaultValue = "5") int pageSize
+    ) {
+        return service.pageActiveForPos(pageNo, pageSize);
+    }
+
+    @GetMapping("/pos/{id:\\d+}")
+    public KhachHangResponse oneForPos(@PathVariable("id") Integer id) {
+        return service.oneActiveForPos(id);
+    }
+
+    // ✅ chỉ match số để tránh nuốt nhầm 'page', 'all', 'pos'
     @GetMapping("/{id:\\d+}")
     public KhachHangResponse one(@PathVariable("id") Integer id) {
         return service.one(id);
@@ -66,7 +94,7 @@ public class KhachHangController {
 
     @GetMapping("/{id:\\d+}/tong-quan")
     public KhachHangTongQuanResponse tongQuan(@PathVariable("id") Integer id) {
-        service.one(id); // ✅ đảm bảo KH tồn tại
+        service.one(id);
         return thongKeService.tongQuan(id);
     }
 

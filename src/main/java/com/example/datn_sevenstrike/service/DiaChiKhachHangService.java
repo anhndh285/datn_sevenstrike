@@ -3,9 +3,11 @@ package com.example.datn_sevenstrike.service;
 import com.example.datn_sevenstrike.dto.request.DiaChiKhachHangRequest;
 import com.example.datn_sevenstrike.dto.response.DiaChiKhachHangResponse;
 import com.example.datn_sevenstrike.entity.DiaChiKhachHang;
+import com.example.datn_sevenstrike.entity.KhachHang;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.DiaChiKhachHangRepository;
+import com.example.datn_sevenstrike.repository.KhachHangRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DiaChiKhachHangService {
 
     private final DiaChiKhachHangRepository repo;
+    private final KhachHangRepository khachHangRepository;
     private final ModelMapper mapper;
 
     public List<DiaChiKhachHangResponse> all() {
@@ -30,6 +33,8 @@ public class DiaChiKhachHangService {
         if (idKhachHang == null) {
             throw new BadRequestEx("Thiếu id_khach_hang");
         }
+
+        requireKhachHangHoatDong(idKhachHang);
 
         return repo.findAllByIdKhachHangAndXoaMemFalseOrderByMacDinhDescIdDesc(idKhachHang)
                 .stream()
@@ -57,6 +62,7 @@ public class DiaChiKhachHangService {
 
         trimSafe(e);
         validateForCreate(e);
+        requireKhachHangHoatDong(e.getIdKhachHang());
         normalizeCreateFlags(e);
 
         // Nếu tạo mới và yêu cầu là mặc định, phải hạ mặc định cũ xuống trước khi save
@@ -87,6 +93,7 @@ public class DiaChiKhachHangService {
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy DiaChiKhachHang id=" + id));
 
         Integer idKhachHang = db.getIdKhachHang();
+        requireKhachHangHoatDong(idKhachHang);
 
         // KHÔNG cho đổi idKhachHang khi update
         if (req.getTenDiaChi() != null) db.setTenDiaChi(req.getTenDiaChi());
@@ -149,6 +156,7 @@ public class DiaChiKhachHangService {
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy DiaChiKhachHang id=" + id));
 
         Integer idKhachHang = db.getIdKhachHang();
+        requireKhachHangHoatDong(idKhachHang);
 
         db.setXoaMem(true);
         db.setMacDinh(false);
@@ -203,6 +211,17 @@ public class DiaChiKhachHangService {
         if (e.getQuan() != null) e.setQuan(e.getQuan().trim());
         if (e.getPhuong() != null) e.setPhuong(e.getPhuong().trim());
         if (e.getDiaChiCuThe() != null) e.setDiaChiCuThe(e.getDiaChiCuThe().trim());
+    }
+
+    private KhachHang requireKhachHangHoatDong(Integer idKhachHang) {
+        if (idKhachHang == null) {
+            throw new BadRequestEx("Thiếu id_khach_hang");
+        }
+
+        return khachHangRepository.findByIdAndXoaMemFalseAndTrangThaiTrue(idKhachHang)
+                .orElseThrow(() -> new BadRequestEx(
+                        "Khách hàng đã ngừng hoạt động hoặc không còn hợp lệ"
+                ));
     }
 
     /**

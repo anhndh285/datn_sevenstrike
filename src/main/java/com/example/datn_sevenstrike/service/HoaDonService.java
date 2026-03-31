@@ -58,6 +58,7 @@ public class HoaDonService {
     private final PhuongThucThanhToanRepository phuongThucThanhToanRepository;
 
     private final GiaoCaRepository giaoCaRepo;
+    private final KhachHangRepository khachHangRepository;
     private final ModelMapper mapper;
     private final EmailService emailService;
 
@@ -436,6 +437,7 @@ public class HoaDonService {
             hd.setNguoiCapNhat(nguoiCapNhat);
         }
 
+        requireKhachHangHoatDong(hd.getIdKhachHang());
         syncVoucherCaNhanComboTruocKhiLuu(hd);
         validateTheoLoaiDon(hd);
 
@@ -463,6 +465,8 @@ public class HoaDonService {
         }
 
         hd.setIdKhachHang(req.getIdKhachHang());
+        requireKhachHangHoatDong(hd.getIdKhachHang());
+
         hd.setIdNhanVien(req.getIdNhanVien());
 
         if (hd.getIdNhanVien() != null) {
@@ -779,6 +783,8 @@ public class HoaDonService {
             throw new BadRequestEx("Chỉ được chốt tại quầy cho hóa đơn loại 'Tại quầy'");
         }
 
+        requireKhachHangHoatDong(hd.getIdKhachHang());
+
         if (hd.getPhiVanChuyen() == null) hd.setPhiVanChuyen(BigDecimal.ZERO);
 
         List<HoaDonChiTiet> items = hoaDonChiTietRepository.findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(idHoaDon);
@@ -938,6 +944,8 @@ public class HoaDonService {
         if (loaiDon == LOAI_DON_TAI_QUAY) {
             throw new BadRequestEx("Hóa đơn tại quầy vui lòng dùng API chốt tại quầy");
         }
+
+        requireKhachHangHoatDong(hd.getIdKhachHang());
 
         if (hd.getPhiVanChuyen() == null) hd.setPhiVanChuyen(BigDecimal.ZERO);
 
@@ -1780,6 +1788,15 @@ public class HoaDonService {
     // =========================================================
     // ========================= PRIVATE =======================
     // =========================================================
+
+    private KhachHang requireKhachHangHoatDong(Integer idKhachHang) {
+        if (idKhachHang == null) return null; // khách lẻ
+
+        return khachHangRepository.findByIdAndXoaMemFalseAndTrangThaiTrue(idKhachHang)
+                .orElseThrow(() -> new BadRequestEx(
+                        "Khách hàng đã ngừng hoạt động hoặc không còn hợp lệ, vui lòng chọn khách khác hoặc chuyển sang khách vãng lai"
+                ));
+    }
 
     private void pushHistory(Integer idHoaDon, Integer trangThai, String ghiChu, Integer nguoiCapNhat) {
         LichSuHoaDon h = new LichSuHoaDon();

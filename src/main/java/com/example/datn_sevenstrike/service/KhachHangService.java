@@ -1,4 +1,3 @@
-// File: src/main/java/com/example/datn_sevenstrike/service/KhachHangService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.dto.request.KhachHangRequest;
@@ -23,12 +22,16 @@ public class KhachHangService {
 
     private final KhachHangRepository repo;
     private final ModelMapper mapper;
-
     private final TaiKhoanEmailService emailService;
 
+    // =========================
+    // ADMIN: dùng cho màn quản lý khách hàng
+    // =========================
     public List<KhachHangResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public Page<KhachHangResponse> page(int pageNo, int pageSize) {
@@ -42,6 +45,30 @@ public class KhachHangService {
     public KhachHangResponse one(Integer id) {
         KhachHang e = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
+        return toResponse(e);
+    }
+
+    // =========================
+    // POS: chỉ lấy khách hàng còn hoạt động
+    // =========================
+    public List<KhachHangResponse> allActiveForPos() {
+        return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public Page<KhachHangResponse> pageActiveForPos(int pageNo, int pageSize) {
+        int p = Math.max(pageNo, 0);
+        int s = Math.max(pageSize, 1);
+
+        var pageable = PageRequest.of(p, s, Sort.by(Sort.Direction.DESC, "id"));
+        return repo.findAllByXoaMemFalseAndTrangThaiTrue(pageable).map(this::toResponse);
+    }
+
+    public KhachHangResponse oneActiveForPos(Integer id) {
+        KhachHang e = repo.findByIdAndXoaMemFalseAndTrangThaiTrue(id)
+                .orElseThrow(() -> new NotFoundEx("Khách hàng đã ngừng hoạt động hoặc không còn hợp lệ"));
         return toResponse(e);
     }
 
@@ -64,7 +91,7 @@ public class KhachHangService {
             emailService.sendKhachHangEmail(saved.getEmail(), saved, rawPassword);
         }
 
-        return toResponse(repo.save(e));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -74,7 +101,6 @@ public class KhachHangService {
         KhachHang db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy KhachHang id=" + id));
 
-        // lưu lại giá trị cũ để chỉ check trùng khi có thay đổi thật
         String oldTenTaiKhoan = db.getTenTaiKhoan();
         String oldEmail = db.getEmail();
 
@@ -85,11 +111,7 @@ public class KhachHangService {
         if (req.getSoDienThoai() != null) db.setSoDienThoai(req.getSoDienThoai());
         if (req.getGioiTinh() != null) db.setGioiTinh(req.getGioiTinh());
         if (req.getNgaySinh() != null) db.setNgaySinh(req.getNgaySinh());
-
-        // ✅ thêm ảnh đại diện
         if (req.getAnhDaiDien() != null) db.setAnhDaiDien(req.getAnhDaiDien());
-
-        // ✅ FIX: cập nhật trạng thái (toggle FE)
         if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
 
         if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
@@ -115,18 +137,13 @@ public class KhachHangService {
     private void applyDefaults(KhachHang e, boolean createMode) {
         if (e.getXoaMem() == null) e.setXoaMem(false);
 
-        // ✅ default trạng thái khi tạo mới
         if (createMode && e.getTrangThai() == null) e.setTrangThai(true);
 
         LocalDateTime now = LocalDateTime.now();
         if (createMode && e.getNgayTao() == null) e.setNgayTao(now);
-        if (!createMode) {
-            if (e.getNgayTao() == null) {
-                // an toàn nếu DB NOT NULL
-                e.setNgayTao(now);
-            }
+        if (!createMode && e.getNgayTao() == null) {
+            e.setNgayTao(now);
         }
-        // ngayCapNhat: create để null cũng được, update set ở trên
     }
 
     private void validate(KhachHang e) {
@@ -137,6 +154,7 @@ public class KhachHangService {
         if (e.getTenTaiKhoan() == null || e.getTenTaiKhoan().isBlank()) {
             throw new BadRequestEx("Thiếu ten_tai_khoan");
         }
+
         if (e.getEmail() == null || e.getEmail().isBlank()) {
             throw new BadRequestEx("Thiếu email");
         }
@@ -152,7 +170,6 @@ public class KhachHangService {
     }
 
     private void validateDuplicateUpdate(KhachHang e, String oldTenTaiKhoan, String oldEmail) {
-        // ✅ chỉ check trùng khi field thực sự thay đổi
         if (e.getTenTaiKhoan() != null && !e.getTenTaiKhoan().equals(oldTenTaiKhoan)) {
             if (repo.existsByTenTaiKhoanAndXoaMemFalseAndIdNot(e.getTenTaiKhoan(), e.getId())) {
                 throw new BadRequestEx("Tên tài khoản đã tồn tại");
