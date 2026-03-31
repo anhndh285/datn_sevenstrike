@@ -13,6 +13,7 @@ import com.example.datn_sevenstrike.entity.KhachHang;
 import com.example.datn_sevenstrike.entity.NhanVien;
 import com.example.datn_sevenstrike.repository.KhachHangRepository;
 import com.example.datn_sevenstrike.repository.NhanVienRepository;
+import com.example.datn_sevenstrike.service.ThongBaoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -36,6 +37,7 @@ public class ChatService {
     private final NhanVienRepository nhanVienRepo;
     private final GeminiService geminiService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ThongBaoService thongBaoService;
 
     public static final String TRANG_THAI_BOT = "BOT_DANG_XU_LY";
     public static final String TRANG_THAI_CHO_NV = "CHO_NHAN_VIEN";
@@ -139,13 +141,16 @@ public class ChatService {
         messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(savedKhach));
 
         if (!TRANG_THAI_BOT.equals(phien.getTrangThai())) {
+            if (laPhienCanTiepNhanDeThongBao(phien)) {
+                thongBaoService.taoThongBaoTinNhanMoi(phien, savedKhach);
+            }
             return;
         }
 
         boolean isNoiBo = LOAI_NOI_BO.equals(phien.getLoai());
 
         if (isDirectEscalateRequest(noiDung)) {
-            xuLyEscalate(phien, isNoiBo);
+            xuLyEscalate(phien, isNoiBo, savedKhach);
             return;
         }
 
@@ -160,25 +165,27 @@ public class ChatService {
         geminiReply = geminiReply.trim();
 
         if (ESCALATE_TOKEN.equalsIgnoreCase(geminiReply)) {
-            xuLyEscalate(phien, isNoiBo);
+            xuLyEscalate(phien, isNoiBo, savedKhach);
             return;
         }
 
         guiTinNhanBot(phien, geminiReply);
     }
 
-    private void xuLyEscalate(PhienChat phien, boolean isNoiBo) {
+    private void xuLyEscalate(PhienChat phien, boolean isNoiBo, TinNhan tinNhanKhachGanNhat) {
         phien.setTrangThai(TRANG_THAI_CHO_NV);
-        phienChatRepo.save(phien);
+        PhienChat savedPhien = phienChatRepo.save(phien);
 
         String thongBao = isNoiBo
                 ? "Yêu cầu của bạn cần sự hỗ trợ của Admin. Đang kết nối với Admin, vui lòng chờ..."
                 : "Tôi đã kết nối bạn với nhân viên hỗ trợ. Vui lòng chờ trong giây lát...";
 
-        guiTinNhanBot(phien, thongBao);
+        guiTinNhanBot(savedPhien, thongBao);
 
         String notifyTopic = isNoiBo ? "/topic/admin/noibo-notifications" : "/topic/admin/notifications";
-        messagingTemplate.convertAndSend(notifyTopic, toDTO(phien));
+        messagingTemplate.convertAndSend(notifyTopic, toDTO(savedPhien));
+
+        thongBaoService.taoThongBaoTinNhanMoi(savedPhien, tinNhanKhachGanNhat);
     }
 
     @Transactional
@@ -196,6 +203,11 @@ public class ChatService {
         TinNhan saved = tinNhanRepo.save(tin);
 
         messagingTemplate.convertAndSend("/topic/chat/" + phienChatId, toTinNhanDTO(saved));
+
+        thongBaoService.danhDauThongBaoChatDaXuLy(
+                phienChatId,
+                phien.getNhanVien() != null ? phien.getNhanVien().getId() : null
+        );
     }
 
     @Transactional
@@ -220,6 +232,8 @@ public class ChatService {
         boolean isNoiBo = LOAI_NOI_BO.equals(saved.getLoai());
         String notifyTopic = isNoiBo ? "/topic/admin/noibo-notifications" : "/topic/admin/notifications";
         messagingTemplate.convertAndSend(notifyTopic, toDTO(saved));
+
+        thongBaoService.danhDauThongBaoChatDaXuLy(phienChatId, nhanVienId);
 
         return toDTO(saved);
     }
@@ -251,6 +265,11 @@ public class ChatService {
                 ? "/topic/admin/noibo-notifications"
                 : "/topic/admin/notifications";
         messagingTemplate.convertAndSend(notifyTopic, toDTO(phien));
+
+        thongBaoService.danhDauThongBaoChatDaXuLy(
+                phienChatId,
+                phien.getNhanVien() != null ? phien.getNhanVien().getId() : null
+        );
     }
 
     public List<PhienChatDTO> layDanhSachPhien(String trangThai, String loai) {
@@ -300,6 +319,14 @@ public class ChatService {
                 || lower.contains("hỗ trợ trực tiếp")
                 || lower.contains("nói chuyện với người thật")
                 || lower.contains("gặp người thật");
+    }
+
+    private boolean laPhienCanTiepNhanDeThongBao(PhienChat phien) {
+        if (phien == null) return false;
+        if (phien.getNhanVien() != null) return false;
+
+        String trangThai = normalizeText(phien.getTrangThai(), "");
+        return TRANG_THAI_CHO_NV.equalsIgnoreCase(trangThai);
     }
 
     private String buildSafeFallback(boolean isNoiBo) {

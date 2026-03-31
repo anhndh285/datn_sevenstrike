@@ -1,6 +1,7 @@
 package com.example.datn_sevenstrike.controller.client;
 
 import com.example.datn_sevenstrike.config.VNPayConfig;
+import com.example.datn_sevenstrike.service.HoaDonService;
 import com.example.datn_sevenstrike.service.client.ClientOrderService;
 import com.example.datn_sevenstrike.service.client.MomoService;
 import com.example.datn_sevenstrike.service.client.VNPayService;
@@ -19,6 +20,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -31,9 +34,44 @@ public class PaymentController {
     private final ZalopayService      zalopayService;
     private final VietQRService       vietQRService;
     private final ClientOrderService  clientOrderService;
+    private final HoaDonService        hoaDonService;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
+
+    private Integer timIdHoaDonTuChuoi(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+
+        String value = raw.trim();
+
+        Pattern[] patterns = new Pattern[] {
+                Pattern.compile("(?i)hoa\\s*don\\D*(\\d+)"),
+                Pattern.compile("(?i)don\\s*hang\\D*(\\d+)"),
+                Pattern.compile("(?i)order\\D*(\\d+)"),
+                Pattern.compile("(?i)HD\\D*(\\d+)")
+        };
+
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(value);
+            if (matcher.find()) {
+                try {
+                    return Integer.parseInt(matcher.group(1));
+                } catch (Exception ignored) {}
+            }
+        }
+
+        Matcher soMatcher = Pattern.compile("\\b(\\d{1,9})\\b").matcher(value);
+        Integer onlyNumber = null;
+        int count = 0;
+        while (soMatcher.find()) {
+            count++;
+            try {
+                onlyNumber = Integer.parseInt(soMatcher.group(1));
+            } catch (Exception ignored) {}
+            if (count > 1) return null;
+        }
+        return count == 1 ? onlyNumber : null;
+    }
 
     // ======================================================
     // VNPay (existing)
@@ -62,8 +100,23 @@ public class PaymentController {
         String orderInfo = request.getParameter("vnp_OrderInfo");
         if (orderInfo == null || orderInfo.isBlank()) orderInfo = "Khong co thong tin";
         String transactionId = request.getParameter("vnp_TransactionNo");
-        long vnpAmount = Long.parseLong(request.getParameter("vnp_Amount"));
+        Integer hoaDonId = timIdHoaDonTuChuoi(orderInfo);
+
+        long vnpAmount = 0;
+        try {
+            vnpAmount = Long.parseLong(request.getParameter("vnp_Amount"));
+        } catch (Exception ignored) {}
         long totalPrice = vnpAmount / 100;
+
+        if (paymentStatus == 1) {
+            if (hoaDonId != null) {
+                hoaDonService.confirmVnpayPayment(hoaDonId, transactionId);
+            }
+        } else {
+            if (hoaDonId != null) {
+                clientOrderService.cancelOrderOnPaymentFailure(hoaDonId);
+            }
+        }
 
         String redirectUrl = frontendUrl + "/client/success?status=" + (paymentStatus == 1 ? "success" : "failed")
                 + "&orderInfo=" + URLEncoder.encode(orderInfo, StandardCharsets.UTF_8)

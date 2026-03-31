@@ -62,38 +62,54 @@ public class StatisticService {
     public List<DetailStatisticResponse> getDetailStatisticTable() {
 
         List<DetailStatisticResponse> result = new ArrayList<>();
-
         LocalDate today = LocalDate.now();
 
-        result.add(buildRow("Hôm nay", today, today));
+        // 1. Hôm nay (So với đúng ngày hôm qua)
+        result.add(buildRow("Hôm nay", today, today, today.minusDays(1), today.minusDays(1)));
 
-        result.add(buildRow("Tuần này", today.minusDays(6), today));
+        // 2. Tuần này (So với TỔNG của cả Tuần trước)
+        LocalDate startWeek = today.minusDays(today.getDayOfWeek().getValue() - 1);
+        LocalDate startLastWeek = startWeek.minusWeeks(1); // Thứ 2 tuần trước
+        LocalDate endLastWeek = startWeek.minusDays(1);    // Chủ nhật tuần trước
+        result.add(buildRow("Tuần này", startWeek, today, startLastWeek, endLastWeek));
 
-        result.add(buildRow("Tháng này", today.withDayOfMonth(1), today));
+        // 3. Tháng này (So với TỔNG của cả Tháng trước)
+        LocalDate startMonth = today.withDayOfMonth(1);
+        LocalDate startLastMonth = startMonth.minusMonths(1); // Ngày 1 tháng trước
+        LocalDate endLastMonth = startMonth.minusDays(1);     // Ngày cuối tháng trước
+        result.add(buildRow("Tháng này", startMonth, today, startLastMonth, endLastMonth));
 
-        result.add(buildRow("Năm nay", today.withDayOfYear(1), today));
+        // 4. Năm nay (So với TỔNG của cả Năm trước)
+        LocalDate startYear = today.withDayOfYear(1);
+        LocalDate startLastYear = startYear.minusYears(1); // Ngày 1/1 năm trước
+        LocalDate endLastYear = startYear.minusDays(1);    // Ngày 31/12 năm trước
+        result.add(buildRow("Năm nay", startYear, today, startLastYear, endLastYear));
 
         return result;
     }
 
-    private DetailStatisticResponse buildRow(String label, LocalDate from, LocalDate to) {
+    // ========== HÀM BUILD ROW (5 Tham số) ==========
+    private DetailStatisticResponse buildRow(String label, LocalDate from, LocalDate to, LocalDate prevFrom, LocalDate prevTo) {
 
         Double revenue = repository.revenueByRange(from, to);
-        Long orders = repository.totalOrdersByRange(from, to);
+        if (revenue == null) revenue = 0.0;
 
+        Long orders = repository.totalOrdersByRange(from, to);
         double avg = (orders == null || orders == 0) ? 0 : revenue / orders;
 
-        long days = ChronoUnit.DAYS.between(from, to) + 1;
-
-        LocalDate prevFrom = from.minusDays(days);
-        LocalDate prevTo = from.minusDays(1);
-
+        // Lấy doanh thu của kỳ trước (Tuần trước, Tháng trước...)
         Double prevRevenue = repository.revenueByRange(prevFrom, prevTo);
+        if (prevRevenue == null) prevRevenue = 0.0;
 
         double growth = 0;
 
-        if (prevRevenue != null && prevRevenue != 0) {
+        // TÍNH TOÁN PHẦN TRĂM TĂNG TRƯỞNG
+        if (prevRevenue > 0) {
             growth = ((revenue - prevRevenue) / prevRevenue) * 100;
+        } else if (revenue > 0) {
+            growth = 100.0; // Kỳ trước 0đ, kỳ này có tiền -> Tăng 100%
+        } else {
+            growth = 0.0;
         }
 
         return DetailStatisticResponse.builder()
@@ -307,54 +323,39 @@ public class StatisticService {
     }
 
     public List<ProductInventoryStatusResponse> getProductInventoryStatus() {
-
+        // 1. Lấy dữ liệu từ Repository (Đảm bảo Query trong Repo đã SELECT thêm cột imageUrl ở cuối)
         List<Object[]> data = repository.getProductInventoryQuarter();
         List<ProductInventoryStatusResponse> result = new ArrayList<>();
 
         for (Object[] row : data) {
-
-            String productCode = (String) row[0];
-            String productDetailCode = (String) row[1];
-            String productName = (String) row[2];
-            String color = (String) row[3];
-            String size = (String) row[4];
-            String surface = (String) row[5];
-
-            Double price = ((Number) row[6]).doubleValue();
-
-            int importQty = ((Number) row[7]).intValue();
-            int soldQty = row[8] == null ? 0 : ((Number) row[8]).intValue();
-
-            double rate = 0;
-
-            if (importQty > 0) {
-                rate = (soldQty * 100.0) / importQty;
-            }
-
-            rate = Math.round(rate * 100.0) / 100.0;
-
-            String status;
-
-            if (rate >= 60) {
-                status = "BAN_CHAY";
-            } else if (rate >= 40) {
-                status = "BINH_THUONG";
-            } else {
-                status = "TON_KHO_NHIEU";
-            }
-
             ProductInventoryStatusResponse res = new ProductInventoryStatusResponse();
 
-            res.setProductCode(productCode);
-            res.setProductDetailCode(productDetailCode);
-            res.setProductName(productName);
-            res.setColor(color);
-            res.setSize(size);
-            res.setSurface(surface);
-            res.setPrice(price);
-            res.setImportQuarter(importQty);
-            res.setSoldQuarter(soldQty);
-            res.setSellRate(rate);
+            // 2. Mapping các thông tin cơ bản
+            res.setProductCode((String) row[0]);
+            res.setProductDetailCode((String) row[1]);
+            res.setProductName((String) row[2]);
+            res.setColor((String) row[3]);
+            res.setSize((String) row[4]);
+            res.setSurface((String) row[5]);
+
+            // 3. Xử lý an toàn các kiểu dữ liệu số (Double, Integer)
+            res.setPrice(row[6] == null ? 0.0 : ((Number) row[6]).doubleValue());
+            res.setImportQuarter(row[7] == null ? 0 : ((Number) row[7]).intValue());
+            res.setSoldQuarter(row[8] == null ? 0 : ((Number) row[8]).intValue());
+            res.setStockQuantity(row[9] == null ? 0 : ((Number) row[9]).intValue());
+            res.setSellRate(row[10] == null ? 0.0 : ((Number) row[10]).doubleValue());
+
+
+            res.setImageUrl((String) row[11]);
+
+            String status;
+            if (res.getSellRate() >= 60) {
+                status = "BAN_CHAY";
+            } else if (res.getSellRate() >= 30) {
+                status = "BAN_ON";
+            } else {
+                status = "TON_KHO";
+            }
             res.setStatus(status);
 
             result.add(res);
@@ -362,5 +363,4 @@ public class StatisticService {
 
         return result;
     }
-
 }

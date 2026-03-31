@@ -11,6 +11,7 @@ import com.example.datn_sevenstrike.entity.*;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.*;
+import com.example.datn_sevenstrike.service.ThongBaoService;
 import com.example.datn_sevenstrike.service.client.EmailService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -61,6 +62,7 @@ public class HoaDonService {
     private final KhachHangRepository khachHangRepository;
     private final ModelMapper mapper;
     private final EmailService emailService;
+    private final ThongBaoService thongBaoService;
 
     @PersistenceContext
     private EntityManager em;
@@ -893,6 +895,7 @@ public class HoaDonService {
         pushHistory(saved.getId(), TrangThaiHoaDon.DA_HOAN_THANH.code,
                 note == null ? "Chốt đơn tại quầy" : note,
                 nguoiCapNhat);
+        thongBaoService.danhDauThongBaoDonDaDuocXuLy(saved.getId(), nguoiCapNhat);
 
         guiMailXacNhanNeuCo(saved);
 
@@ -1083,6 +1086,7 @@ public class HoaDonService {
         }
 
         pushHistory(saved.getId(), saved.getTrangThaiHienTai(), noiDungLichSu, nguoiCapNhat);
+        thongBaoService.danhDauThongBaoDonDaDuocXuLy(saved.getId(), nguoiCapNhat);
 
         guiMailXacNhanNeuCo(saved);
 
@@ -1177,6 +1181,7 @@ public class HoaDonService {
         pushHistory(saved.getId(), newStatus,
                 (note == null || note.isBlank()) ? "Cập nhật trạng thái" : note.trim(),
                 nguoiCapNhat);
+        thongBaoService.danhDauThongBaoDonDaDuocXuLy(saved.getId(), nguoiCapNhat);
 
         return toResponse(saved);
     }
@@ -1361,6 +1366,7 @@ public class HoaDonService {
         pushHistory(idHoaDon, TrangThaiHoaDon.DA_HUY.code,
                 (note == null || note.isBlank()) ? "Đã hủy" : note.trim(),
                 nguoiCapNhat);
+        thongBaoService.danhDauThongBaoDonDaDuocXuLy(idHoaDon, nguoiCapNhat);
     }
 
     // =========================================================
@@ -1398,6 +1404,7 @@ public class HoaDonService {
             ghiChu += " | Đơn chuyển khoản/VNPay - cần kiểm tra hoàn tiền nếu đã thanh toán";
         }
         pushHistory(saved.getId(), TRANG_THAI_YEU_CAU_HUY, ghiChu, null);
+        thongBaoService.taoThongBaoDonCoYeuCauHuy(saved, lyDo);
 
         return toResponse(saved);
     }
@@ -1442,6 +1449,7 @@ public class HoaDonService {
         String ghiChu = "[ADMIN] Từ chối yêu cầu hủy đơn của khách hàng"
                 + (lyDo != null && !lyDo.isBlank() ? " - Lý do: " + lyDo.trim() : "");
         pushHistory(saved.getId(), TrangThaiHoaDon.CHUA_XAC_NHAN.code, ghiChu, nhanVienId);
+        thongBaoService.danhDauThongBaoDonDaDuocXuLy(saved.getId(), nhanVienId);
 
         return toResponse(saved);
     }
@@ -1474,6 +1482,7 @@ public class HoaDonService {
         String note = "Thanh toán VNPay thành công"
                 + (transactionId != null && !transactionId.isBlank() ? " - Mã GD: " + transactionId.trim() : "");
         pushHistory(idHoaDon, hd.getTrangThaiHienTai(), note, null);
+        thongBaoService.danhDauThongBaoThanhToanLechTrangThaiDaXuLy(idHoaDon, null);
     }
 
     @Transactional
@@ -2146,9 +2155,11 @@ public class HoaDonService {
                 }
 
                 autoCancelAffectedPendingOnlineOrders(ctspId, excludeHoaDonId);
+                thongBaoService.kiemTraVaTaoCanhBaoTonKhoChoCtsp(ctspId);
 
             } else if (delta < 0) {
                 chiTietSanPhamRepository.tangTon(ctspId, Math.abs(delta));
+                thongBaoService.kiemTraVaTaoCanhBaoTonKhoChoCtsp(ctspId);
             }
         }
     }

@@ -17,9 +17,10 @@ public class ProductInventoryStatusResponse {
 
     private Integer importQuarter;
     private Integer soldQuarter;
+    private Integer stockQuantity;
 
     private Double sellRate;
 
     private String status;
-
+    private String imageUrl;
 }

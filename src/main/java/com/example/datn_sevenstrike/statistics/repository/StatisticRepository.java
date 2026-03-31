@@ -55,23 +55,43 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
             @Param("toDate") LocalDate toDate
     );
 
-    // -------- TOP SẢN PHẨM --------
+    // -------- TOP SẢN PHẨM (BẢN FIX LỖI CÚ PHÁP) --------
     @Query("""
-        SELECT new com.example.datn_sevenstrike.statistics.response.TopProductResponse(
-            sp.tenSanPham,
-            cts.giaBan,
-            SUM(ct.soLuong)
-        )
-        FROM HoaDonChiTiet ct
-        JOIN ct.chiTietSanPham cts
-        JOIN cts.sanPham sp
-        JOIN ct.hoaDon h
-        WHERE ct.xoaMem = false
-        AND (:fromDate IS NULL OR cast(h.ngayTao as date) >= :fromDate)
-        AND (:toDate IS NULL OR cast(h.ngayTao as date) <= :toDate)
-        GROUP BY sp.tenSanPham, cts.giaBan
-        ORDER BY SUM(ct.soLuong) DESC
-    """)
+    SELECT new com.example.datn_sevenstrike.statistics.response.TopProductResponse(
+        cts.maChiTietSanPham,
+        sp.tenSanPham,
+        cts.giaBan,
+        SUM(ct.soLuong),
+        ms.tenMauSac,
+        kt.tenKichThuoc,
+        ls.tenLoaiSan,
+        a.duongDanAnh,
+        cts.soLuong
+    )
+    FROM HoaDonChiTiet ct
+    JOIN ct.chiTietSanPham cts
+    JOIN cts.sanPham sp
+    LEFT JOIN cts.mauSac ms
+    LEFT JOIN cts.kichThuoc kt
+    LEFT JOIN cts.loaiSan ls
+    LEFT JOIN AnhChiTietSanPham a ON a.chiTietSanPham.id = cts.id 
+         AND a.laAnhDaiDien = true 
+         AND a.xoaMem = false
+    WHERE ct.xoaMem = false
+      AND ct.hoaDon.xoaMem = false
+      AND (:fromDate IS NULL OR cast(ct.hoaDon.ngayTao as date) >= :fromDate)
+      AND (:toDate IS NULL OR cast(ct.hoaDon.ngayTao as date) <= :toDate)
+    GROUP BY 
+        cts.maChiTietSanPham, 
+        sp.tenSanPham, 
+        cts.giaBan, 
+        ms.tenMauSac, 
+        kt.tenKichThuoc, 
+        ls.tenLoaiSan, 
+        a.duongDanAnh, 
+        cts.soLuong
+    ORDER BY SUM(ct.soLuong) DESC
+""")
     List<TopProductResponse> topProducts(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate
@@ -180,71 +200,50 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
             @Param("end") LocalDateTime end
     );
 
-    @Query(value = """
 
+    //Thong ke ton kho
+    @Query(value = """
 SELECT
     sp.ma_san_pham AS productCode,
-
-    ctsp.ma_chi_tiet_san_pham AS productDetailCode,   -- ✅ MÃ CTSP
-
+    ctsp.ma_chi_tiet_san_pham AS productDetailCode,
     sp.ten_san_pham AS productName,
-
     ms.ten_mau_sac AS color,
-
     kt.ten_kich_thuoc AS size,
-
     ls.ten_loai_san AS surface,
-
     ctsp.gia_ban AS price,
-
-    COALESCE(ctsp.so_luong,0) AS importQuantity,      -- ✅ NHẬP
-
-    COALESCE(sold.sold_quantity,0) AS soldQuantity,   -- ✅ BÁN
-
+    COALESCE(sold.sold_quantity,0) + COALESCE(ctsp.so_luong,0) AS importQuantity,
+    COALESCE(sold.sold_quantity,0) AS soldQuantity,
+    COALESCE(ctsp.so_luong,0) AS stockQuantity,
     CASE
-        WHEN ctsp.so_luong = 0 THEN 0
-        ELSE ROUND((COALESCE(sold.sold_quantity,0) * 100.0) / ctsp.so_luong,2)
-    END AS sellRate
-
+        WHEN (COALESCE(sold.sold_quantity,0) + COALESCE(ctsp.so_luong,0)) = 0
+        THEN 0
+        ELSE ROUND(
+            (COALESCE(sold.sold_quantity,0) * 100.0) /
+            (COALESCE(sold.sold_quantity,0) + COALESCE(ctsp.so_luong,0))
+        ,2)
+    END AS sellRate,
+    -- Thêm cột lấy ảnh đại diện (Index 11)
+    (SELECT TOP 1 img.duong_dan_anh 
+     FROM anh_chi_tiet_san_pham img 
+     WHERE img.id_chi_tiet_san_pham = ctsp.id 
+     AND img.la_anh_dai_dien = 1 
+     AND img.xoa_mem = 0) AS imageUrl
 FROM chi_tiet_san_pham ctsp
-
-JOIN san_pham sp
-    ON ctsp.id_san_pham = sp.id
-
-LEFT JOIN mau_sac ms
-    ON ctsp.id_mau_sac = ms.id
-
-LEFT JOIN kich_thuoc kt
-    ON ctsp.id_kich_thuoc = kt.id
-
-LEFT JOIN loai_san ls
-    ON ctsp.id_loai_san = ls.id
-
+JOIN san_pham sp ON ctsp.id_san_pham = sp.id
+LEFT JOIN mau_sac ms ON ctsp.id_mau_sac = ms.id
+LEFT JOIN kich_thuoc kt ON ctsp.id_kich_thuoc = kt.id
+LEFT JOIN loai_san ls ON ctsp.id_loai_san = ls.id
 LEFT JOIN (
-
     SELECT
         ct.id_chi_tiet_san_pham,
         SUM(ct.so_luong) AS sold_quantity
-
     FROM hoa_don_chi_tiet ct
-
-    JOIN hoa_don hd
-        ON hd.id = ct.id_hoa_don
-
+    JOIN hoa_don hd ON hd.id = ct.id_hoa_don
     WHERE hd.xoa_mem = 0
-      AND DATEPART(YEAR, hd.ngay_tao) = DATEPART(YEAR, GETDATE())
-      AND DATEPART(QUARTER, hd.ngay_tao) = DATEPART(QUARTER, GETDATE())
-
     GROUP BY ct.id_chi_tiet_san_pham
-
-) sold
-    ON ctsp.id = sold.id_chi_tiet_san_pham
-
-WHERE sp.xoa_mem = 0
-  AND ctsp.xoa_mem = 0
-
+) sold ON ctsp.id = sold.id_chi_tiet_san_pham
+WHERE sp.xoa_mem = 0 AND ctsp.xoa_mem = 0
 ORDER BY sp.ma_san_pham
-
 """, nativeQuery = true)
     List<Object[]> getProductInventoryQuarter();
 }

@@ -16,7 +16,13 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class TopProductResponse {
+    private String productDetailCode;
     private String productName;
     private BigDecimal price;
     private Long quantity;
+    private String color;
+    private String size;
+    private String surface;
+    private String imageUrl;
+    private Integer stockQuantity; // Số lượng tồn kho thực tế
 }

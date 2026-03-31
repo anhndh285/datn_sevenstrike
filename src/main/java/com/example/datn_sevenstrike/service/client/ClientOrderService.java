@@ -9,6 +9,7 @@ import com.example.datn_sevenstrike.ghn.dto.request.GhnTinhPhiRequest;
 import com.example.datn_sevenstrike.ghn.dto.response.GhnTinhPhiResponse;
 import com.example.datn_sevenstrike.ghn.service.GhnService;
 import com.example.datn_sevenstrike.repository.*;
+import com.example.datn_sevenstrike.service.ThongBaoService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,7 @@ public class ClientOrderService {
     private final GiaoDichThanhToanRepository giaoDichThanhToanRepo;
     private final PhuongThucThanhToanRepository phuongThucThanhToanRepo;
     private final EmailService emailService;
+    private final ThongBaoService thongBaoService;
     private final EntityManager entityManager;
     private final GhnService ghnService;
 
@@ -608,6 +610,8 @@ public class ClientOrderService {
             emailService.sendOrderConfirmation(hd);
         }
 
+        thongBaoService.taoThongBaoDonTrucTuyenMoi(hd);
+
         return OrderResponse.builder()
                 .id(hd.getId())
                 .maHoaDon(hd.getMaHoaDon())
@@ -635,6 +639,8 @@ public class ClientOrderService {
             gd.setThoiGianCapNhat(LocalDateTime.now());
         }
         giaoDichThanhToanRepo.saveAll(gds);
+
+        thongBaoService.taoThongBaoThanhToanThatBai(hd, "Cổng thanh toán trả về kết quả thất bại");
     }
 
     private ProductClientDTO mapToProductClientDTO(SanPham sp) {
