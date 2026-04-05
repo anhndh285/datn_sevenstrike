@@ -4,7 +4,9 @@ import com.example.datn_sevenstrike.entity.ThuongHieu;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
+@Repository
 public interface ThuongHieuRepository extends JpaRepository<ThuongHieu, Integer> {
 
     List<ThuongHieu> findAllByXoaMemFalseOrderByIdDesc();
@@ -12,4 +14,8 @@ public interface ThuongHieuRepository extends JpaRepository<ThuongHieu, Integer>
     List<ThuongHieu> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<ThuongHieu> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenThuongHieuIgnoreCaseAndXoaMemFalse(String tenThuongHieu);
+
+    boolean existsByTenThuongHieuIgnoreCaseAndXoaMemFalseAndIdNot(String tenThuongHieu, Integer id);
 }

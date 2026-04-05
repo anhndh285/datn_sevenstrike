@@ -14,4 +14,8 @@ public interface FormChanRepository extends JpaRepository<FormChan, Integer> {
     List<FormChan> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<FormChan> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenFormChanIgnoreCaseAndXoaMemFalse(String tenFormChan);
+
+    boolean existsByTenFormChanIgnoreCaseAndXoaMemFalseAndIdNot(String tenFormChan, Integer id);
 }

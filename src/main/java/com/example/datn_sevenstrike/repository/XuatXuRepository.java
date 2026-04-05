@@ -14,4 +14,8 @@ public interface XuatXuRepository extends JpaRepository<XuatXu, Integer> {
     List<XuatXu> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<XuatXu> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenXuatXuIgnoreCaseAndXoaMemFalse(String tenXuatXu);
+
+    boolean existsByTenXuatXuIgnoreCaseAndXoaMemFalseAndIdNot(String tenXuatXu, Integer id);
 }

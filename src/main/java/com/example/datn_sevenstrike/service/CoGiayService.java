@@ -25,12 +25,16 @@ public class CoGiayService {
 
     public List<CoGiayResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<CoGiayResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public CoGiayResponse one(Integer id) {
@@ -41,32 +45,42 @@ public class CoGiayService {
 
     @Transactional
     public CoGiayResponse create(CoGiayRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         CoGiay e = mapper.map(req, CoGiay.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public CoGiayResponse update(Integer id, CoGiayRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         CoGiay db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy CoGiay id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenCoGiay() != null) db.setTenCoGiay(req.getTenCoGiay());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenCoGiay() != null) {
+            db.setTenCoGiay(req.getTenCoGiay());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         CoGiay saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -96,15 +110,50 @@ public class CoGiayService {
     }
 
     private void applyDefaults(CoGiay e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenCoGiay() != null) e.setTenCoGiay(e.getTenCoGiay().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenCoGiay() != null) {
+            e.setTenCoGiay(e.getTenCoGiay().trim());
+        }
     }
 
-    private void validate(CoGiay e) {
+    private void validateCreate(CoGiay e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenCoGiay(), null)) {
+            throw new BadRequestEx("Tên cỏ giày đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(CoGiay e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenCoGiay(), e.getId())) {
+            throw new BadRequestEx("Tên cỏ giày đã tồn tại");
+        }
+    }
+
+    private void validateCommon(CoGiay e) {
         if (e.getTenCoGiay() == null || e.getTenCoGiay().isBlank()) {
             throw new BadRequestEx("Thiếu ten_co_giay");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenCoGiay()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(CoGiay e) {

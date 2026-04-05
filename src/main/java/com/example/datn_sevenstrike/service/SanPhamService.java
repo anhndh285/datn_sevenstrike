@@ -27,7 +27,9 @@ public class SanPhamService {
 
     public List<SanPhamResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public Page<SanPhamResponse> page(int pageNo, int pageSize) {
@@ -39,7 +41,9 @@ public class SanPhamService {
 
     public List<SanPhamResponse> allKinhDoanh() {
         return repo.findAllByXoaMemFalseAndTrangThaiKinhDoanhTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public Page<SanPhamResponse> pageKinhDoanh(int pageNo, int pageSize) {
@@ -57,40 +61,66 @@ public class SanPhamService {
 
     @Transactional
     public SanPhamResponse create(SanPhamRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         SanPham e = mapper.map(req, SanPham.class);
         e.setId(null);
 
         applyDefaults(e, true);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public SanPhamResponse update(Integer id, SanPhamRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         SanPham db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy SanPham id=" + id));
 
         Boolean trangThaiCu = db.getTrangThaiKinhDoanh();
 
-        if (req.getIdThuongHieu() != null) db.setIdThuongHieu(req.getIdThuongHieu());
-        if (req.getIdXuatXu() != null) db.setIdXuatXu(req.getIdXuatXu());
-        if (req.getIdViTriThiDau() != null) db.setIdViTriThiDau(req.getIdViTriThiDau());
-        if (req.getIdPhongCachChoi() != null) db.setIdPhongCachChoi(req.getIdPhongCachChoi());
-        if (req.getIdCoGiay() != null) db.setIdCoGiay(req.getIdCoGiay());
-        if (req.getIdChatLieu() != null) db.setIdChatLieu(req.getIdChatLieu());
-        if (req.getTenSanPham() != null) db.setTenSanPham(req.getTenSanPham());
-        if (req.getMoTaNgan() != null) db.setMoTaNgan(req.getMoTaNgan());
-        if (req.getMoTaChiTiet() != null) db.setMoTaChiTiet(req.getMoTaChiTiet());
-        if (req.getTrangThaiKinhDoanh() != null) db.setTrangThaiKinhDoanh(req.getTrangThaiKinhDoanh());
-        if (req.getNguoiCapNhat() != null) db.setNguoiCapNhat(req.getNguoiCapNhat());
+        if (req.getIdThuongHieu() != null) {
+            db.setIdThuongHieu(req.getIdThuongHieu());
+        }
+        if (req.getIdXuatXu() != null) {
+            db.setIdXuatXu(req.getIdXuatXu());
+        }
+        if (req.getIdViTriThiDau() != null) {
+            db.setIdViTriThiDau(req.getIdViTriThiDau());
+        }
+        if (req.getIdPhongCachChoi() != null) {
+            db.setIdPhongCachChoi(req.getIdPhongCachChoi());
+        }
+        if (req.getIdCoGiay() != null) {
+            db.setIdCoGiay(req.getIdCoGiay());
+        }
+        if (req.getIdChatLieu() != null) {
+            db.setIdChatLieu(req.getIdChatLieu());
+        }
+        if (req.getTenSanPham() != null) {
+            db.setTenSanPham(req.getTenSanPham());
+        }
+        if (req.getMoTaNgan() != null) {
+            db.setMoTaNgan(req.getMoTaNgan());
+        }
+        if (req.getMoTaChiTiet() != null) {
+            db.setMoTaChiTiet(req.getMoTaChiTiet());
+        }
+        if (req.getTrangThaiKinhDoanh() != null) {
+            db.setTrangThaiKinhDoanh(req.getTrangThaiKinhDoanh());
+        }
+        if (req.getNguoiCapNhat() != null) {
+            db.setNguoiCapNhat(req.getNguoiCapNhat());
+        }
 
         applyDefaults(db, false);
-        validate(db);
+        validateUpdate(db);
 
         SanPham saved = repo.save(db);
 
@@ -117,23 +147,65 @@ public class SanPhamService {
     }
 
     private void applyDefaults(SanPham e, boolean createMode) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThaiKinhDoanh() == null) e.setTrangThaiKinhDoanh(true);
-
-        if (e.getTenSanPham() != null) e.setTenSanPham(e.getTenSanPham().trim());
-        if (e.getMoTaNgan() != null) e.setMoTaNgan(e.getMoTaNgan().trim());
-        if (e.getMoTaChiTiet() != null) e.setMoTaChiTiet(e.getMoTaChiTiet().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThaiKinhDoanh() == null) {
+            e.setTrangThaiKinhDoanh(true);
+        }
+        if (e.getTenSanPham() != null) {
+            e.setTenSanPham(e.getTenSanPham().trim());
+        }
+        if (e.getMoTaNgan() != null) {
+            e.setMoTaNgan(e.getMoTaNgan().trim());
+        }
+        if (e.getMoTaChiTiet() != null) {
+            e.setMoTaChiTiet(e.getMoTaChiTiet().trim());
+        }
 
         LocalDateTime now = LocalDateTime.now();
-        if (createMode && e.getNgayTao() == null) e.setNgayTao(now);
+        if (createMode && e.getNgayTao() == null) {
+            e.setNgayTao(now);
+        }
         e.setNgayCapNhat(now);
     }
 
-    private void validate(SanPham e) {
-        if (e.getIdThuongHieu() == null) throw new BadRequestEx("Thiếu id_thuong_hieu");
+    private void validateCreate(SanPham e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenSanPham(), null)) {
+            throw new BadRequestEx("Tên sản phẩm đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(SanPham e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenSanPham(), e.getId())) {
+            throw new BadRequestEx("Tên sản phẩm đã tồn tại");
+        }
+    }
+
+    private void validateCommon(SanPham e) {
+        if (e.getIdThuongHieu() == null) {
+            throw new BadRequestEx("Thiếu id_thuong_hieu");
+        }
         if (e.getTenSanPham() == null || e.getTenSanPham().isBlank()) {
             throw new BadRequestEx("Thiếu ten_san_pham");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenSanPham()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private SanPhamResponse toResponse(SanPham e) {

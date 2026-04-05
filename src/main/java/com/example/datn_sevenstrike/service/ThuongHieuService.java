@@ -25,12 +25,16 @@ public class ThuongHieuService {
 
     public List<ThuongHieuResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<ThuongHieuResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public ThuongHieuResponse one(Integer id) {
@@ -41,35 +45,45 @@ public class ThuongHieuService {
 
     @Transactional
     public ThuongHieuResponse create(ThuongHieuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         ThuongHieu e = mapper.map(req, ThuongHieu.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public ThuongHieuResponse update(Integer id, ThuongHieuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         ThuongHieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ThuongHieu id=" + id));
 
-        boolean activeCu = !Boolean.TRUE.equals(db.getXoaMem()) && Boolean.TRUE.equals(db.getTrangThai());
+        boolean activeCu = isActive(db);
 
-        if (req.getTenThuongHieu() != null) db.setTenThuongHieu(req.getTenThuongHieu());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenThuongHieu() != null) {
+            db.setTenThuongHieu(req.getTenThuongHieu());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         ThuongHieu saved = repo.save(db);
-        boolean activeMoi = !Boolean.TRUE.equals(saved.getXoaMem()) && Boolean.TRUE.equals(saved.getTrangThai());
+        boolean activeMoi = isActive(saved);
 
         if (activeCu && !activeMoi) {
             sanPhamRepository.ngungKinhDoanhTheoThuongHieu(saved.getId());
@@ -96,15 +110,50 @@ public class ThuongHieuService {
     }
 
     private void applyDefaults(ThuongHieu e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenThuongHieu() != null) e.setTenThuongHieu(e.getTenThuongHieu().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenThuongHieu() != null) {
+            e.setTenThuongHieu(e.getTenThuongHieu().trim());
+        }
     }
 
-    private void validate(ThuongHieu e) {
+    private void validateCreate(ThuongHieu e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenThuongHieu(), null)) {
+            throw new BadRequestEx("Tên thương hiệu đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(ThuongHieu e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenThuongHieu(), e.getId())) {
+            throw new BadRequestEx("Tên thương hiệu đã tồn tại");
+        }
+    }
+
+    private void validateCommon(ThuongHieu e) {
         if (e.getTenThuongHieu() == null || e.getTenThuongHieu().isBlank()) {
             throw new BadRequestEx("Thiếu ten_thuong_hieu");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenThuongHieu()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(ThuongHieu e) {

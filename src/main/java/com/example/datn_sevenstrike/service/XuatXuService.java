@@ -25,12 +25,16 @@ public class XuatXuService {
 
     public List<XuatXuResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<XuatXuResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public XuatXuResponse one(Integer id) {
@@ -41,32 +45,42 @@ public class XuatXuService {
 
     @Transactional
     public XuatXuResponse create(XuatXuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         XuatXu e = mapper.map(req, XuatXu.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public XuatXuResponse update(Integer id, XuatXuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         XuatXu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy XuatXu id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenXuatXu() != null) db.setTenXuatXu(req.getTenXuatXu());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenXuatXu() != null) {
+            db.setTenXuatXu(req.getTenXuatXu());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         XuatXu saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -96,15 +110,50 @@ public class XuatXuService {
     }
 
     private void applyDefaults(XuatXu e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenXuatXu() != null) e.setTenXuatXu(e.getTenXuatXu().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenXuatXu() != null) {
+            e.setTenXuatXu(e.getTenXuatXu().trim());
+        }
     }
 
-    private void validate(XuatXu e) {
+    private void validateCreate(XuatXu e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenXuatXu(), null)) {
+            throw new BadRequestEx("Tên xuất xứ đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(XuatXu e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenXuatXu(), e.getId())) {
+            throw new BadRequestEx("Tên xuất xứ đã tồn tại");
+        }
+    }
+
+    private void validateCommon(XuatXu e) {
         if (e.getTenXuatXu() == null || e.getTenXuatXu().isBlank()) {
             throw new BadRequestEx("Thiếu ten_xuat_xu");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenXuatXu()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(XuatXu e) {

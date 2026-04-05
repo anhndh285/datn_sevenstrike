@@ -25,12 +25,16 @@ public class PhongCachChoiService {
 
     public List<PhongCachChoiResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<PhongCachChoiResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public PhongCachChoiResponse one(Integer id) {
@@ -41,32 +45,42 @@ public class PhongCachChoiService {
 
     @Transactional
     public PhongCachChoiResponse create(PhongCachChoiRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         PhongCachChoi e = mapper.map(req, PhongCachChoi.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public PhongCachChoiResponse update(Integer id, PhongCachChoiRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         PhongCachChoi db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy PhongCachChoi id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenPhongCach() != null) db.setTenPhongCach(req.getTenPhongCach());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenPhongCach() != null) {
+            db.setTenPhongCach(req.getTenPhongCach());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         PhongCachChoi saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -96,15 +110,50 @@ public class PhongCachChoiService {
     }
 
     private void applyDefaults(PhongCachChoi e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenPhongCach() != null) e.setTenPhongCach(e.getTenPhongCach().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenPhongCach() != null) {
+            e.setTenPhongCach(e.getTenPhongCach().trim());
+        }
     }
 
-    private void validate(PhongCachChoi e) {
+    private void validateCreate(PhongCachChoi e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenPhongCach(), null)) {
+            throw new BadRequestEx("Tên phong cách chơi đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(PhongCachChoi e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenPhongCach(), e.getId())) {
+            throw new BadRequestEx("Tên phong cách chơi đã tồn tại");
+        }
+    }
+
+    private void validateCommon(PhongCachChoi e) {
         if (e.getTenPhongCach() == null || e.getTenPhongCach().isBlank()) {
             throw new BadRequestEx("Thiếu ten_phong_cach");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenPhongCach()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(PhongCachChoi e) {

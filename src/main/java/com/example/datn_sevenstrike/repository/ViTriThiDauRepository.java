@@ -14,4 +14,8 @@ public interface ViTriThiDauRepository extends JpaRepository<ViTriThiDau, Intege
     List<ViTriThiDau> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<ViTriThiDau> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenViTriIgnoreCaseAndXoaMemFalse(String tenViTri);
+
+    boolean existsByTenViTriIgnoreCaseAndXoaMemFalseAndIdNot(String tenViTri, Integer id);
 }

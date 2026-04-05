@@ -14,4 +14,8 @@ public interface LoaiSanRepository extends JpaRepository<LoaiSan, Integer> {
     List<LoaiSan> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<LoaiSan> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenLoaiSanIgnoreCaseAndXoaMemFalse(String tenLoaiSan);
+
+    boolean existsByTenLoaiSanIgnoreCaseAndXoaMemFalseAndIdNot(String tenLoaiSan, Integer id);
 }

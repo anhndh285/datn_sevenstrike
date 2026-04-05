@@ -14,4 +14,8 @@ public interface CoGiayRepository extends JpaRepository<CoGiay, Integer> {
     List<CoGiay> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<CoGiay> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenCoGiayIgnoreCaseAndXoaMemFalse(String tenCoGiay);
+
+    boolean existsByTenCoGiayIgnoreCaseAndXoaMemFalseAndIdNot(String tenCoGiay, Integer id);
 }

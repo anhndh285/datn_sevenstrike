@@ -25,12 +25,16 @@ public class ViTriThiDauService {
 
     public List<ViTriThiDauResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<ViTriThiDauResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public ViTriThiDauResponse one(Integer id) {
@@ -41,32 +45,42 @@ public class ViTriThiDauService {
 
     @Transactional
     public ViTriThiDauResponse create(ViTriThiDauRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         ViTriThiDau e = mapper.map(req, ViTriThiDau.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public ViTriThiDauResponse update(Integer id, ViTriThiDauRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         ViTriThiDau db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ViTriThiDau id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenViTri() != null) db.setTenViTri(req.getTenViTri());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenViTri() != null) {
+            db.setTenViTri(req.getTenViTri());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         ViTriThiDau saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -96,15 +110,50 @@ public class ViTriThiDauService {
     }
 
     private void applyDefaults(ViTriThiDau e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenViTri() != null) e.setTenViTri(e.getTenViTri().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenViTri() != null) {
+            e.setTenViTri(e.getTenViTri().trim());
+        }
     }
 
-    private void validate(ViTriThiDau e) {
+    private void validateCreate(ViTriThiDau e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenViTri(), null)) {
+            throw new BadRequestEx("Tên vị trí thi đấu đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(ViTriThiDau e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenViTri(), e.getId())) {
+            throw new BadRequestEx("Tên vị trí thi đấu đã tồn tại");
+        }
+    }
+
+    private void validateCommon(ViTriThiDau e) {
         if (e.getTenViTri() == null || e.getTenViTri().isBlank()) {
             throw new BadRequestEx("Thiếu ten_vi_tri");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenViTri()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(ViTriThiDau e) {

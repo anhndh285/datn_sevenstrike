@@ -14,4 +14,8 @@ public interface ChatLieuRepository extends JpaRepository<ChatLieu, Integer> {
     List<ChatLieu> findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
 
     Optional<ChatLieu> findByIdAndXoaMemFalse(Integer id);
+
+    boolean existsByTenChatLieuIgnoreCaseAndXoaMemFalse(String tenChatLieu);
+
+    boolean existsByTenChatLieuIgnoreCaseAndXoaMemFalseAndIdNot(String tenChatLieu, Integer id);
 }

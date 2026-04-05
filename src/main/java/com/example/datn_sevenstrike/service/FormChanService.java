@@ -23,12 +23,16 @@ public class FormChanService {
 
     public List<FormChanResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<FormChanResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public FormChanResponse one(Integer id) {
@@ -39,32 +43,42 @@ public class FormChanService {
 
     @Transactional
     public FormChanResponse create(FormChanRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         FormChan e = mapper.map(req, FormChan.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public FormChanResponse update(Integer id, FormChanRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         FormChan db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy FormChan id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenFormChan() != null) db.setTenFormChan(req.getTenFormChan());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenFormChan() != null) {
+            db.setTenFormChan(req.getTenFormChan());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         FormChan saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -91,15 +105,50 @@ public class FormChanService {
     }
 
     private void applyDefaults(FormChan e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenFormChan() != null) e.setTenFormChan(e.getTenFormChan().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenFormChan() != null) {
+            e.setTenFormChan(e.getTenFormChan().trim());
+        }
     }
 
-    private void validate(FormChan e) {
+    private void validateCreate(FormChan e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenFormChan(), null)) {
+            throw new BadRequestEx("Tên form chân đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(FormChan e) {
+        validateCommon(e);
+        if (isDuplicateTen(e.getTenFormChan(), e.getId())) {
+            throw new BadRequestEx("Tên form chân đã tồn tại");
+        }
+    }
+
+    private void validateCommon(FormChan e) {
         if (e.getTenFormChan() == null || e.getTenFormChan().isBlank()) {
             throw new BadRequestEx("Thiếu ten_form_chan");
         }
+    }
+
+    private boolean isDuplicateTen(String ten, Integer currentId) {
+        String normalized = normalize(ten);
+        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
+                !sameId(item.getId(), currentId) && normalize(item.getTenFormChan()).equalsIgnoreCase(normalized)
+        );
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private boolean sameId(Integer a, Integer b) {
+        return a != null && a.equals(b);
     }
 
     private boolean isActive(FormChan e) {
