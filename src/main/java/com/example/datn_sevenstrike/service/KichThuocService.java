@@ -123,7 +123,7 @@ public class KichThuocService {
     private void validateCreate(KichThuoc e) {
         validateCommon(e);
 
-        if (isDuplicateTen(e.getTenKichThuoc(), null)) {
+        if (repo.existsByTenKichThuocIgnoreCaseAndXoaMemFalse(e.getTenKichThuoc())) {
             throw new BadRequestEx("Tên kích thước đã tồn tại");
         }
 
@@ -136,7 +136,7 @@ public class KichThuocService {
     private void validateUpdate(KichThuoc e) {
         validateCommon(e);
 
-        if (isDuplicateTen(e.getTenKichThuoc(), e.getId())) {
+        if (repo.existsByTenKichThuocIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenKichThuoc(), e.getId())) {
             throw new BadRequestEx("Tên kích thước đã tồn tại");
         }
 
@@ -159,21 +159,6 @@ public class KichThuocService {
                 throw new BadRequestEx("gia_tri_kich_thuoc phải trong khoảng 38.0 đến 45.0");
             }
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenKichThuoc()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(KichThuoc e) {

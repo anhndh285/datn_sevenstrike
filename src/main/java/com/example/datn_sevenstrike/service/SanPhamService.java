@@ -172,14 +172,14 @@ public class SanPhamService {
 
     private void validateCreate(SanPham e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenSanPham(), null)) {
+        if (repo.existsByTenSanPhamIgnoreCaseAndXoaMemFalse(e.getTenSanPham())) {
             throw new BadRequestEx("Tên sản phẩm đã tồn tại");
         }
     }
 
     private void validateUpdate(SanPham e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenSanPham(), e.getId())) {
+        if (repo.existsByTenSanPhamIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenSanPham(), e.getId())) {
             throw new BadRequestEx("Tên sản phẩm đã tồn tại");
         }
     }
@@ -191,21 +191,6 @@ public class SanPhamService {
         if (e.getTenSanPham() == null || e.getTenSanPham().isBlank()) {
             throw new BadRequestEx("Thiếu ten_san_pham");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenSanPham()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private SanPhamResponse toResponse(SanPham e) {

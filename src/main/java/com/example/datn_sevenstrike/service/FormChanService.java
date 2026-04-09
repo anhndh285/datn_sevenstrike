@@ -118,14 +118,14 @@ public class FormChanService {
 
     private void validateCreate(FormChan e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenFormChan(), null)) {
+        if (repo.existsByTenFormChanIgnoreCaseAndXoaMemFalse(e.getTenFormChan())) {
             throw new BadRequestEx("Tên form chân đã tồn tại");
         }
     }
 
     private void validateUpdate(FormChan e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenFormChan(), e.getId())) {
+        if (repo.existsByTenFormChanIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenFormChan(), e.getId())) {
             throw new BadRequestEx("Tên form chân đã tồn tại");
         }
     }
@@ -134,21 +134,6 @@ public class FormChanService {
         if (e.getTenFormChan() == null || e.getTenFormChan().isBlank()) {
             throw new BadRequestEx("Thiếu ten_form_chan");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenFormChan()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(FormChan e) {

@@ -123,14 +123,14 @@ public class PhongCachChoiService {
 
     private void validateCreate(PhongCachChoi e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenPhongCach(), null)) {
+        if (repo.existsByTenPhongCachIgnoreCaseAndXoaMemFalse(e.getTenPhongCach())) {
             throw new BadRequestEx("Tên phong cách chơi đã tồn tại");
         }
     }
 
     private void validateUpdate(PhongCachChoi e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenPhongCach(), e.getId())) {
+        if (repo.existsByTenPhongCachIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenPhongCach(), e.getId())) {
             throw new BadRequestEx("Tên phong cách chơi đã tồn tại");
         }
     }
@@ -139,21 +139,6 @@ public class PhongCachChoiService {
         if (e.getTenPhongCach() == null || e.getTenPhongCach().isBlank()) {
             throw new BadRequestEx("Thiếu ten_phong_cach");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenPhongCach()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(PhongCachChoi e) {

@@ -123,14 +123,14 @@ public class CoGiayService {
 
     private void validateCreate(CoGiay e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenCoGiay(), null)) {
+        if (repo.existsByTenCoGiayIgnoreCaseAndXoaMemFalse(e.getTenCoGiay())) {
             throw new BadRequestEx("Tên cỏ giày đã tồn tại");
         }
     }
 
     private void validateUpdate(CoGiay e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenCoGiay(), e.getId())) {
+        if (repo.existsByTenCoGiayIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenCoGiay(), e.getId())) {
             throw new BadRequestEx("Tên cỏ giày đã tồn tại");
         }
     }
@@ -139,21 +139,6 @@ public class CoGiayService {
         if (e.getTenCoGiay() == null || e.getTenCoGiay().isBlank()) {
             throw new BadRequestEx("Thiếu ten_co_giay");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenCoGiay()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(CoGiay e) {

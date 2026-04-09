@@ -123,14 +123,14 @@ public class ViTriThiDauService {
 
     private void validateCreate(ViTriThiDau e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenViTri(), null)) {
+        if (repo.existsByTenViTriIgnoreCaseAndXoaMemFalse(e.getTenViTri())) {
             throw new BadRequestEx("Tên vị trí thi đấu đã tồn tại");
         }
     }
 
     private void validateUpdate(ViTriThiDau e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenViTri(), e.getId())) {
+        if (repo.existsByTenViTriIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenViTri(), e.getId())) {
             throw new BadRequestEx("Tên vị trí thi đấu đã tồn tại");
         }
     }
@@ -139,21 +139,6 @@ public class ViTriThiDauService {
         if (e.getTenViTri() == null || e.getTenViTri().isBlank()) {
             throw new BadRequestEx("Thiếu ten_vi_tri");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenViTri()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(ViTriThiDau e) {

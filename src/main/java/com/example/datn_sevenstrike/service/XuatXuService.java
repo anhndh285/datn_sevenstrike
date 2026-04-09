@@ -123,14 +123,14 @@ public class XuatXuService {
 
     private void validateCreate(XuatXu e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenXuatXu(), null)) {
+        if (repo.existsByTenXuatXuIgnoreCaseAndXoaMemFalse(e.getTenXuatXu())) {
             throw new BadRequestEx("Tên xuất xứ đã tồn tại");
         }
     }
 
     private void validateUpdate(XuatXu e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenXuatXu(), e.getId())) {
+        if (repo.existsByTenXuatXuIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenXuatXu(), e.getId())) {
             throw new BadRequestEx("Tên xuất xứ đã tồn tại");
         }
     }
@@ -139,21 +139,6 @@ public class XuatXuService {
         if (e.getTenXuatXu() == null || e.getTenXuatXu().isBlank()) {
             throw new BadRequestEx("Thiếu ten_xuat_xu");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenXuatXu()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(XuatXu e) {

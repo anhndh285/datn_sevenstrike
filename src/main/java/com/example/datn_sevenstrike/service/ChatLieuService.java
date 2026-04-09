@@ -25,12 +25,16 @@ public class ChatLieuService {
 
     public List<ChatLieuResponse> all() {
         return repo.findAllByXoaMemFalseOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public List<ChatLieuResponse> allActive() {
         return repo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc()
-                .stream().map(this::toResponse).toList();
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public ChatLieuResponse one(Integer id) {
@@ -41,32 +45,42 @@ public class ChatLieuService {
 
     @Transactional
     public ChatLieuResponse create(ChatLieuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu tạo mới");
+        }
 
         ChatLieu e = mapper.map(req, ChatLieu.class);
         e.setId(null);
 
         applyDefaults(e);
-        validate(e);
+        validateCreate(e);
 
         return toResponse(repo.save(e));
     }
 
     @Transactional
     public ChatLieuResponse update(Integer id, ChatLieuRequest req) {
-        if (req == null) throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        if (req == null) {
+            throw new BadRequestEx("Thiếu dữ liệu cập nhật");
+        }
 
         ChatLieu db = repo.findByIdAndXoaMemFalse(id)
                 .orElseThrow(() -> new NotFoundEx("Không tìm thấy ChatLieu id=" + id));
 
         boolean activeCu = isActive(db);
 
-        if (req.getTenChatLieu() != null) db.setTenChatLieu(req.getTenChatLieu());
-        if (req.getTrangThai() != null) db.setTrangThai(req.getTrangThai());
-        if (req.getXoaMem() != null) db.setXoaMem(req.getXoaMem());
+        if (req.getTenChatLieu() != null) {
+            db.setTenChatLieu(req.getTenChatLieu());
+        }
+        if (req.getTrangThai() != null) {
+            db.setTrangThai(req.getTrangThai());
+        }
+        if (req.getXoaMem() != null) {
+            db.setXoaMem(req.getXoaMem());
+        }
 
         applyDefaults(db);
-        validate(db);
+        validateUpdate(db);
 
         ChatLieu saved = repo.save(db);
         boolean activeMoi = isActive(saved);
@@ -96,12 +110,32 @@ public class ChatLieuService {
     }
 
     private void applyDefaults(ChatLieu e) {
-        if (e.getXoaMem() == null) e.setXoaMem(false);
-        if (e.getTrangThai() == null) e.setTrangThai(true);
-        if (e.getTenChatLieu() != null) e.setTenChatLieu(e.getTenChatLieu().trim());
+        if (e.getXoaMem() == null) {
+            e.setXoaMem(false);
+        }
+        if (e.getTrangThai() == null) {
+            e.setTrangThai(true);
+        }
+        if (e.getTenChatLieu() != null) {
+            e.setTenChatLieu(e.getTenChatLieu().trim());
+        }
     }
 
-    private void validate(ChatLieu e) {
+    private void validateCreate(ChatLieu e) {
+        validateCommon(e);
+        if (repo.existsByTenChatLieuIgnoreCaseAndXoaMemFalse(e.getTenChatLieu())) {
+            throw new BadRequestEx("Tên chất liệu đã tồn tại");
+        }
+    }
+
+    private void validateUpdate(ChatLieu e) {
+        validateCommon(e);
+        if (repo.existsByTenChatLieuIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenChatLieu(), e.getId())) {
+            throw new BadRequestEx("Tên chất liệu đã tồn tại");
+        }
+    }
+
+    private void validateCommon(ChatLieu e) {
         if (e.getTenChatLieu() == null || e.getTenChatLieu().isBlank()) {
             throw new BadRequestEx("Thiếu ten_chat_lieu");
         }

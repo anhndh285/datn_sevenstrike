@@ -118,14 +118,14 @@ public class LoaiSanService {
 
     private void validateCreate(LoaiSan e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenLoaiSan(), null)) {
+        if (repo.existsByTenLoaiSanIgnoreCaseAndXoaMemFalse(e.getTenLoaiSan())) {
             throw new BadRequestEx("Tên loại sân đã tồn tại");
         }
     }
 
     private void validateUpdate(LoaiSan e) {
         validateCommon(e);
-        if (isDuplicateTen(e.getTenLoaiSan(), e.getId())) {
+        if (repo.existsByTenLoaiSanIgnoreCaseAndXoaMemFalseAndIdNot(e.getTenLoaiSan(), e.getId())) {
             throw new BadRequestEx("Tên loại sân đã tồn tại");
         }
     }
@@ -134,21 +134,6 @@ public class LoaiSanService {
         if (e.getTenLoaiSan() == null || e.getTenLoaiSan().isBlank()) {
             throw new BadRequestEx("Thiếu ten_loai_san");
         }
-    }
-
-    private boolean isDuplicateTen(String ten, Integer currentId) {
-        String normalized = normalize(ten);
-        return repo.findAllByXoaMemFalseOrderByIdDesc().stream().anyMatch(item ->
-                !sameId(item.getId(), currentId) && normalize(item.getTenLoaiSan()).equalsIgnoreCase(normalized)
-        );
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private boolean sameId(Integer a, Integer b) {
-        return a != null && a.equals(b);
     }
 
     private boolean isActive(LoaiSan e) {
