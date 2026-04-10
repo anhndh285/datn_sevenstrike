@@ -14,6 +14,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class VariantClientDTO {
     private Integer id;
+    private String maChiTietSanPham;
     private String tenMauSac;
     private String maMauHex;
     private String tenKichThuoc;

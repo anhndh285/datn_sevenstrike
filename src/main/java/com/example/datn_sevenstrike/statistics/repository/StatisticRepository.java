@@ -34,6 +34,7 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
         SELECT COALESCE(SUM(h.tongTien), 0)
         FROM HoaDon h
         WHERE h.xoaMem = false
+        AND h.trangThaiHienTai = 5
         AND (:fromDate IS NULL OR cast(h.ngayTao as date) >= :fromDate)
         AND (:toDate IS NULL OR cast(h.ngayTao as date) <= :toDate)
     """)
@@ -47,6 +48,7 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
         SELECT COALESCE(SUM(h.tongTienSauGiam), 0)
         FROM HoaDon h
         WHERE h.xoaMem = false
+        AND h.trangThaiHienTai = 5
         AND (:fromDate IS NULL OR cast(h.ngayTao as date) >= :fromDate)
         AND (:toDate IS NULL OR cast(h.ngayTao as date) <= :toDate)
     """)
@@ -121,6 +123,7 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
         )
         FROM HoaDon h
         WHERE h.xoaMem = false
+        AND h.trangThaiHienTai = 5
         AND (:fromDate IS NULL OR cast(h.ngayTao as date) >= :fromDate)
         AND (:toDate IS NULL OR cast(h.ngayTao as date) <= :toDate)
         GROUP BY cast(h.ngayTao as date)
@@ -136,6 +139,7 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
         SELECT COALESCE(SUM(h.tongTienSauGiam), 0)
         FROM HoaDon h
         WHERE h.xoaMem = false
+        AND h.trangThaiHienTai = 5
         AND cast(h.ngayTao as date) >= :from
         AND cast(h.ngayTao as date) <= :to
     """)
@@ -170,18 +174,13 @@ public interface StatisticRepository extends JpaRepository<HoaDon, Integer> {
             @Param("to") LocalDate to
     );
 
-    // ✅ SỬA LỖI: loai_don tinyint (0/1/2) nên không so sánh true/false
-    // 0 tại quầy | 1 giao hàng | 2 online
     @Query("""
         SELECT COALESCE(SUM(hd.tongTienSauGiam), 0)
         FROM HoaDon hd
         WHERE hd.ngayTao >= :fromDate
           AND hd.ngayTao < :toDate
           AND hd.xoaMem = false
-          AND (
-                hd.loaiDon = 1
-                OR hd.ngayThanhToan IS NOT NULL
-          )
+          AND hd.trangThaiHienTai = 5
     """)
     BigDecimal getExpectedRevenue(
             @Param("fromDate") LocalDateTime fromDate,

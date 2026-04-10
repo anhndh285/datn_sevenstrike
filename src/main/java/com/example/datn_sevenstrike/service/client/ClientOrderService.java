@@ -314,6 +314,7 @@ public class ClientOrderService {
         return ClientOrderItemDTO.builder()
                 .id(item.getId())
                 .tenSanPham(name)
+                .maChiTietSanPham(ctsp != null ? ctsp.getMaChiTietSanPham() : null)
                 .anhDaiDien(thumb)
                 .phanLoai(variant)
                 .donGia(item.getDonGia())
@@ -557,41 +558,26 @@ public class ClientOrderService {
             }
         }
 
-        // ✅ Tạo giao dịch thanh toán ngay để đánh dấu loại đơn
-        // ⚠️ QUAN TRỌNG: Phải có GiaoDichThanhToan để isDonChuyenKhoan() hoạt động đúng
-        if (ptttId != null) {
-            GiaoDichThanhToan gd = new GiaoDichThanhToan();
-            gd.setIdHoaDon(hd.getId());
-            gd.setIdPhuongThucThanhToan(ptttId);
-            gd.setSoTien(thanhTien);
-            gd.setTrangThai("khoi_tao");
-            LocalDateTime now = LocalDateTime.now();
-            gd.setThoiGianCapNhat(now);
-            gd.setNguoiCapNhat(req.getIdKhachHang());
-            gd.setXoaMem(false);
-            gd.setGhiChu("Khởi tạo đơn hàng online");
-            giaoDichThanhToanRepo.save(gd);
-            System.out.println("✅ Saved GiaoDichThanhToan: id=" + gd.getId() + ", ptttId=" + ptttId);
-        } else {
-            // ⚠️ Fallback: Nếu vẫn không tìm được phương thức, tạo COD mặc định
-            List<PhuongThucThanhToan> allPttt = phuongThucThanhToanRepo.findAllByXoaMemFalseAndTrangThaiTrueOrderByIdDesc();
-            for (PhuongThucThanhToan p : allPttt) {
-                String name = p.getTenPhuongThucThanhToan().toUpperCase();
-                if (name.contains("TIỀN MẶT") || name.contains("COD")) {
-                    GiaoDichThanhToan gd = new GiaoDichThanhToan();
-                    gd.setIdHoaDon(hd.getId());
-                    gd.setIdPhuongThucThanhToan(p.getId());
-                    gd.setSoTien(thanhTien);
-                    gd.setTrangThai("khoi_tao");
-                    LocalDateTime now = LocalDateTime.now();
-                    gd.setThoiGianCapNhat(now);
-                    gd.setNguoiCapNhat(req.getIdKhachHang());
-                    gd.setXoaMem(false);
-                    gd.setGhiChu("Khởi tạo đơn hàng online (mặc định COD)");
-                    giaoDichThanhToanRepo.save(gd);
-                    break;
-                }
+        // ✅ Tạo giao dịch thanh toán ngay cho đơn KHÔNG phải COD (VNPay, Momo, v.v.)
+        // Đơn COD sẽ được tạo GiaoDichThanhToan khi chuyển sang trạng thái Đã hoàn thành
+        boolean laCOD = (loaiThanhToan == null || loaiThanhToan == 0);
+        if (!laCOD) {
+            if (ptttId != null) {
+                GiaoDichThanhToan gd = new GiaoDichThanhToan();
+                gd.setIdHoaDon(hd.getId());
+                gd.setIdPhuongThucThanhToan(ptttId);
+                gd.setSoTien(thanhTien);
+                gd.setTrangThai("khoi_tao");
+                LocalDateTime now = LocalDateTime.now();
+                gd.setThoiGianCapNhat(now);
+                gd.setNguoiCapNhat(req.getIdKhachHang());
+                gd.setXoaMem(false);
+                gd.setGhiChu("Khởi tạo đơn hàng online");
+                giaoDichThanhToanRepo.save(gd);
+                System.out.println("✅ Saved GiaoDichThanhToan: id=" + gd.getId() + ", ptttId=" + ptttId);
             }
+        } else {
+            System.out.println("ℹ️ Đơn COD - GiaoDichThanhToan sẽ được tạo khi giao hàng thành công");
         }
 
         LichSuHoaDon ls = LichSuHoaDon.builder()
@@ -687,6 +673,7 @@ public class ClientOrderService {
 
             return VariantClientDTO.builder()
                     .id(v.getId())
+                    .maChiTietSanPham(v.getMaChiTietSanPham())
                     .tenMauSac(v.getMauSac() != null ? v.getMauSac().getTenMauSac() : "")
                     .maMauHex(v.getMauSac() != null ? v.getMauSac().getMaMauHex() : null)
                     .tenKichThuoc(v.getKichThuoc() != null ? v.getKichThuoc().getTenKichThuoc() : "")
@@ -810,6 +797,7 @@ public class ClientOrderService {
 
             variantDTOs.add(VariantClientDTO.builder()
                     .id(v.getId())
+                    .maChiTietSanPham(v.getMaChiTietSanPham())
                     .tenMauSac(v.getMauSac() != null ? v.getMauSac().getTenMauSac() : "")
                     .maMauHex(v.getMauSac() != null ? v.getMauSac().getMaMauHex() : null)
                     .tenKichThuoc(v.getKichThuoc() != null ? v.getKichThuoc().getTenKichThuoc() : "")

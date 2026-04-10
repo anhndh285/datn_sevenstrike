@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 @Builder
 public class ClientOrderItemDTO {
     private String tenSanPham;
+    private String maChiTietSanPham;
     private String anhDaiDien;
     private String phanLoai; // e.g. "Kich thuoc: Nho, Mau: Xanh"
     private BigDecimal donGia;
