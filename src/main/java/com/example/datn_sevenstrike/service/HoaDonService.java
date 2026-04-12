@@ -1,4 +1,3 @@
-// File: src/main/java/com/example/datn_sevenstrike/service/HoaDonService.java
 package com.example.datn_sevenstrike.service;
 
 import com.example.datn_sevenstrike.constants.TrangThaiHoaDon;
@@ -11,7 +10,6 @@ import com.example.datn_sevenstrike.entity.*;
 import com.example.datn_sevenstrike.exception.BadRequestEx;
 import com.example.datn_sevenstrike.exception.NotFoundEx;
 import com.example.datn_sevenstrike.repository.*;
-import com.example.datn_sevenstrike.service.ThongBaoService;
 import com.example.datn_sevenstrike.service.client.EmailService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -587,140 +585,19 @@ public class HoaDonService {
             throw new BadRequestEx("Chỉ được chỉnh sửa sản phẩm khi đơn hàng ở trạng thái Chờ xác nhận");
         }
 
-        List<HoaDonChiTiet> current = hoaDonChiTietRepository.findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(idHoaDon);
+        HoaDonResponse response = updateItemsInternal(
+                hd,
+                items,
+                nguoiCapNhat,
+                coTheDeTrongChiTietKhiUpsert(hd)
+        );
 
-        Map<Integer, Integer> oldQtyMap = sumQtyByCtsp(current);
-        Map<Integer, Integer> newQtyMap = new HashMap<>();
-        Map<Integer, String> newGhiChuMap = new HashMap<>();
+        String historyNote = coHoaDonConSanPham(idHoaDon)
+                ? "Cập nhật sản phẩm trong hóa đơn"
+                : "Cập nhật sản phẩm trong hóa đơn (giỏ hàng rỗng)";
 
-        for (HoaDonChiTietRequest x : items) {
-            if (x == null) throw new BadRequestEx("Dữ liệu sản phẩm không hợp lệ");
-
-            if (x.getIdHoaDon() != null && !idHoaDon.equals(x.getIdHoaDon())) {
-                throw new BadRequestEx("idHoaDon trong body không khớp với đường dẫn");
-            }
-
-            Integer ctspId = x.getIdChiTietSanPham();
-            if (ctspId == null) throw new BadRequestEx("Thiếu idChiTietSanPham");
-
-            if (Boolean.TRUE.equals(x.getXoaMem())) {
-                newQtyMap.put(ctspId, 0);
-                continue;
-            }
-
-            if (x.getSoLuong() == null || x.getSoLuong() <= 0) {
-                throw new BadRequestEx("Số lượng phải lớn hơn 0");
-            }
-
-            newQtyMap.merge(ctspId, x.getSoLuong(), Integer::sum);
-
-            String ghiChu = trimToNull(x.getGhiChu());
-            if (ghiChu != null) newGhiChuMap.put(ctspId, ghiChu);
-        }
-
-        int totalFinalQty = newQtyMap.values().stream()
-                .filter(v -> v != null && v > 0)
-                .mapToInt(Integer::intValue)
-                .sum();
-
-        if (totalFinalQty <= 0) {
-            if (!coTheDeTrongChiTietKhiUpsert(hd)) {
-                throw new BadRequestEx("Hóa đơn phải có ít nhất 1 sản phẩm");
-            }
-
-            adjustInventoryTheoDelta(oldQtyMap, newQtyMap, idHoaDon);
-
-            if (current != null && !current.isEmpty()) {
-                for (HoaDonChiTiet row : current) {
-                    row.setXoaMem(true);
-                }
-                hoaDonChiTietRepository.saveAll(current);
-            }
-
-            hd.setTongTien(BigDecimal.ZERO);
-            hd.setTongTienGiam(BigDecimal.ZERO);
-            hd.setTongTienSauGiam(BigDecimal.ZERO);
-
-            if (LOAI_DON_TAI_QUAY_EQUALS(hd.getLoaiDon()) || hd.getPhiVanChuyen() == null) {
-                hd.setPhiVanChuyen(BigDecimal.ZERO);
-            }
-
-            if (nguoiCapNhat != null) hd.setNguoiCapNhat(nguoiCapNhat);
-            hd.setNgayCapNhat(LocalDateTime.now());
-            repo.save(hd);
-
-            pushHistory(
-                    idHoaDon,
-                    hd.getTrangThaiHienTai(),
-                    "Cập nhật sản phẩm trong hóa đơn (giỏ hàng rỗng)",
-                    nguoiCapNhat
-            );
-
-            return one(idHoaDon);
-        }
-
-        validateDanhSachCtspConBanDuoc(newQtyMap);
-        adjustInventoryTheoDelta(oldQtyMap, newQtyMap, idHoaDon);
-
-        Map<Integer, List<HoaDonChiTiet>> currentByCtsp = groupByCtsp(current);
-        List<HoaDonChiTiet> toSave = new ArrayList<>(current);
-
-        for (Map.Entry<Integer, List<HoaDonChiTiet>> entry : currentByCtsp.entrySet()) {
-            Integer ctspId = entry.getKey();
-            List<HoaDonChiTiet> rows = entry.getValue();
-            int newQty = newQtyMap.getOrDefault(ctspId, 0);
-
-            if (newQty <= 0) {
-                for (HoaDonChiTiet row : rows) row.setXoaMem(true);
-                continue;
-            }
-
-            ChiTietSanPham ctsp = requireCtsp(ctspId);
-            BigDecimal donGiaApDung = tinhGiaBanSauGiamTheoDot(ctspId, ctsp.getGiaBan());
-
-            HoaDonChiTiet keep = rows.get(0);
-            keep.setSoLuong(newQty);
-            keep.setDonGia(donGiaApDung);
-            keep.setGhiChu(newGhiChuMap.get(ctspId));
-            keep.setXoaMem(false);
-
-            for (int i = 1; i < rows.size(); i++) {
-                rows.get(i).setXoaMem(true);
-            }
-        }
-
-        for (Map.Entry<Integer, Integer> e : newQtyMap.entrySet()) {
-            Integer ctspId = e.getKey();
-            Integer qty = e.getValue();
-            if (qty == null || qty <= 0) continue;
-
-            if (currentByCtsp.containsKey(ctspId)) continue;
-
-            ChiTietSanPham ctsp = requireCtsp(ctspId);
-            BigDecimal donGiaApDung = tinhGiaBanSauGiamTheoDot(ctspId, ctsp.getGiaBan());
-
-            HoaDonChiTiet ctNew = new HoaDonChiTiet();
-            ctNew.setId(null);
-            ctNew.setIdHoaDon(idHoaDon);
-            ctNew.setIdChiTietSanPham(ctspId);
-            ctNew.setSoLuong(qty);
-            ctNew.setDonGia(donGiaApDung);
-            ctNew.setGhiChu(newGhiChuMap.get(ctspId));
-            ctNew.setXoaMem(false);
-
-            toSave.add(ctNew);
-        }
-
-        hoaDonChiTietRepository.saveAll(toSave);
-
-        recalcTotalsPreserveCurrentDiscount(hd);
-        if (nguoiCapNhat != null) hd.setNguoiCapNhat(nguoiCapNhat);
-        hd.setNgayCapNhat(LocalDateTime.now());
-        repo.save(hd);
-
-        pushHistory(idHoaDon, hd.getTrangThaiHienTai(), "Cập nhật sản phẩm trong hóa đơn", nguoiCapNhat);
-
-        return one(idHoaDon);
+        pushHistory(idHoaDon, hd.getTrangThaiHienTai(), historyNote, nguoiCapNhat);
+        return response;
     }
 
     private boolean coTheDeTrongChiTietKhiUpsert(HoaDon hd) {
@@ -1642,13 +1519,40 @@ public class HoaDonService {
             throw new BadRequestEx("Đơn hàng không thuộc về khách hàng này");
         }
 
+        HoaDonResponse response = updateItemsInternal(hd, items, null, false);
+        pushHistory(idHoaDon, hd.getTrangThaiHienTai(), "Khách hàng chỉnh sửa sản phẩm trong đơn", null);
+        return response;
+    }
+
+    // =========================================================
+    // ========================= PRIVATE =======================
+    // =========================================================
+
+    private HoaDonResponse updateItemsInternal(
+            HoaDon hd,
+            List<HoaDonChiTietRequest> items,
+            Integer nguoiCapNhat,
+            boolean allowEmptyResult
+    ) {
+        if (hd == null || hd.getId() == null) {
+            throw new BadRequestEx("Hóa đơn không hợp lệ");
+        }
+        if (items == null) {
+            throw new BadRequestEx("Thiếu danh sách sản phẩm");
+        }
+
+        Integer idHoaDon = hd.getId();
+
         List<HoaDonChiTiet> current = hoaDonChiTietRepository.findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(idHoaDon);
         Map<Integer, Integer> oldQtyMap = sumQtyByCtsp(current);
 
         Map<Integer, HoaDonChiTiet> currentById = new HashMap<>();
         Map<Integer, Boolean> usedFallbackCtsp = new HashMap<>();
+
         for (HoaDonChiTiet ct : current) {
-            currentById.put(ct.getId(), ct);
+            if (ct != null && ct.getId() != null) {
+                currentById.put(ct.getId(), ct);
+            }
         }
 
         List<HoaDonChiTiet> newLines = new ArrayList<>();
@@ -1669,9 +1573,12 @@ public class HoaDonService {
                 if (target == null) {
                     throw new BadRequestEx("Không tìm thấy dòng hóa đơn chi tiết id=" + req.getIdHoaDonChiTiet());
                 }
+                if (!ctspId.equals(target.getIdChiTietSanPham())) {
+                    throw new BadRequestEx("idHoaDonChiTiet không khớp với idChiTietSanPham");
+                }
             } else if (!Boolean.TRUE.equals(usedFallbackCtsp.get(ctspId))) {
                 for (HoaDonChiTiet ct : current) {
-                    if (ctspId.equals(ct.getIdChiTietSanPham())) {
+                    if (ct != null && ctspId.equals(ct.getIdChiTietSanPham())) {
                         target = ct;
                         usedFallbackCtsp.put(ctspId, true);
                         break;
@@ -1703,7 +1610,10 @@ public class HoaDonService {
                         if (ghiChu != null) target.setGhiChu(ghiChu);
                     }
 
-                    BigDecimal giaMoi = req.getGiaBanHienTai();
+                    BigDecimal giaMoi = firstNonNullPrice(
+                            req.getGiaBanHienTai(),
+                            req.getDonGia()
+                    );
                     if (giaMoi == null) {
                         ChiTietSanPham ctsp = requireCtsp(ctspId);
                         giaMoi = tinhGiaBanSauGiamTheoDot(ctspId, ctsp.getGiaBan());
@@ -1738,10 +1648,16 @@ public class HoaDonService {
                     throw new BadRequestEx("Số lượng phải lớn hơn 0");
                 }
 
-                ChiTietSanPham ctsp = requireCtsp(ctspId);
-                BigDecimal donGia = req.getGiaBanHienTai() != null
-                        ? money2(req.getGiaBanHienTai())
-                        : tinhGiaBanSauGiamTheoDot(ctspId, ctsp.getGiaBan());
+                BigDecimal donGia = firstNonNullPrice(
+                        req.getDonGia(),
+                        req.getGiaBanHienTai()
+                );
+                if (donGia == null) {
+                    ChiTietSanPham ctsp = requireCtsp(ctspId);
+                    donGia = tinhGiaBanSauGiamTheoDot(ctspId, ctsp.getGiaBan());
+                } else {
+                    donGia = money2(donGia);
+                }
 
                 HoaDonChiTiet ctNew = new HoaDonChiTiet();
                 ctNew.setId(null);
@@ -1757,7 +1673,8 @@ public class HoaDonService {
 
         List<HoaDonChiTiet> finalActive = new ArrayList<>();
         for (HoaDonChiTiet ct : current) {
-            if (!Boolean.TRUE.equals(ct.getXoaMem())
+            if (ct != null
+                    && !Boolean.TRUE.equals(ct.getXoaMem())
                     && ct.getSoLuong() != null
                     && ct.getSoLuong() > 0) {
                 finalActive.add(ct);
@@ -1770,8 +1687,32 @@ public class HoaDonService {
                 .filter(v -> v != null && v > 0)
                 .mapToInt(Integer::intValue)
                 .sum();
+
         if (totalFinalQty <= 0) {
-            throw new BadRequestEx("Đơn hàng phải có ít nhất 1 sản phẩm");
+            if (!allowEmptyResult) {
+                throw new BadRequestEx("Hóa đơn phải có ít nhất 1 sản phẩm");
+            }
+
+            Map<Integer, Integer> newQtyMap = new HashMap<>();
+            adjustInventoryTheoDelta(oldQtyMap, newQtyMap, idHoaDon);
+
+            for (HoaDonChiTiet row : current) {
+                if (row != null) row.setXoaMem(true);
+            }
+            hoaDonChiTietRepository.saveAll(current);
+
+            hd.setTongTien(BigDecimal.ZERO);
+            hd.setTongTienGiam(BigDecimal.ZERO);
+            hd.setTongTienSauGiam(BigDecimal.ZERO);
+            if (LOAI_DON_TAI_QUAY_EQUALS(hd.getLoaiDon()) || hd.getPhiVanChuyen() == null) {
+                hd.setPhiVanChuyen(BigDecimal.ZERO);
+            }
+
+            if (nguoiCapNhat != null) hd.setNguoiCapNhat(nguoiCapNhat);
+            hd.setNgayCapNhat(LocalDateTime.now());
+            repo.save(hd);
+
+            return one(idHoaDon);
         }
 
         Map<Integer, Integer> newQtyMap = sumQtyByCtsp(finalActive);
@@ -1784,22 +1725,25 @@ public class HoaDonService {
         }
 
         recalcTotalsPreserveCurrentDiscount(hd);
-        hd.setNguoiCapNhat(null);
+        if (nguoiCapNhat != null) hd.setNguoiCapNhat(nguoiCapNhat);
         hd.setNgayCapNhat(LocalDateTime.now());
         repo.save(hd);
-
-        pushHistory(idHoaDon, hd.getTrangThaiHienTai(),
-                "Khách hàng chỉnh sửa sản phẩm trong đơn", null);
 
         return one(idHoaDon);
     }
 
-    // =========================================================
-    // ========================= PRIVATE =======================
-    // =========================================================
+    private BigDecimal firstNonNullPrice(BigDecimal first, BigDecimal second) {
+        if (first != null) return first;
+        return second;
+    }
+
+    private boolean coHoaDonConSanPham(Integer idHoaDon) {
+        List<HoaDonChiTiet> list = hoaDonChiTietRepository.findAllByIdHoaDonAndXoaMemFalseOrderByIdAsc(idHoaDon);
+        return list != null && !list.isEmpty();
+    }
 
     private KhachHang requireKhachHangHoatDong(Integer idKhachHang) {
-        if (idKhachHang == null) return null; // khách lẻ
+        if (idKhachHang == null) return null;
 
         return khachHangRepository.findByIdAndXoaMemFalseAndTrangThaiTrue(idKhachHang)
                 .orElseThrow(() -> new BadRequestEx(
