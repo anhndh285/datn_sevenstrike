@@ -266,6 +266,7 @@ public class ClientOrderService {
                 .maHoaDon(hd.getMaHoaDon())
                 .ngayTao(hd.getNgayTao())
                 .trangThai(status != null ? status.label : "")
+                .trangThaiHienTai(hd.getTrangThaiHienTai())
                 .tongTien(hd.getTongTienSauGiam().add(hd.getPhiVanChuyen() != null ? hd.getPhiVanChuyen() : BigDecimal.ZERO))
                 .soLuongSanPham(details.size())
                 .sanPhamDaiDien(firstProductName)

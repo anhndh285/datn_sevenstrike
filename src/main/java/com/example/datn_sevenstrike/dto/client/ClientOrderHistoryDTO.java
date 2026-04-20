@@ -15,6 +15,7 @@ public class ClientOrderHistoryDTO {
     private String maHoaDon;
     private LocalDateTime ngayTao;
     private String trangThai; // Label
+    private Integer trangThaiHienTai; // Numeric code 1–7
     private BigDecimal tongTien;
     private String sanPhamDaiDien; // Name of first product or summary
     private String anhDaiDien; // Thumb of first product
